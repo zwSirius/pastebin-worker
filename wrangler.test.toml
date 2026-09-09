@@ -1,0 +1,53 @@
+# Test-only wrangler configuration for `vitest-pool-workers`.
+# Kept separate from wrangler.toml so tests run without the production
+# BASIC_AUTH and with the R2 binding available for the storage tests.
+name = "pb-test"
+compatibility_date = "2025-04-24"
+
+main = "worker/index.ts"
+
+[[rules]]
+type = "Text"
+globs = [ "**/*.html", "**/*.md", "**/*.css" ]
+fallthrough = true
+
+[assets]
+directory = "dist/frontend"
+run_worker_first = true
+binding = "ASSETS"
+
+[[kv_namespaces]]
+binding = "PB"
+id = "435f8959b9de485ea48751ba557d90f5"
+
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "pb-test"
+
+[vars]
+DEPLOY_URL = "https://pb.example.com"
+
+REPO = "https://github.com/SharzyL/pastebin-worker"
+
+INDEX_PAGE_TITLE = "Pastebin Worker"
+
+TOS_MAINTAINER = "Sharzy"
+
+TOS_MAIL = "pb@example.com"
+
+CACHE_STATIC_PAGE_AGE = 7200
+
+CACHE_PASTE_AGE = 600
+
+DEFAULT_EXPIRATION = "7d"
+
+MAX_EXPIRATION = "90d"
+
+# tests must run unauthenticated
+BASIC_AUTH = {}
+
+R2_THRESHOLD = "20K"
+
+R2_MAX_ALLOWED = "256M"
+
+DISALLOWED_MIME_FOR_PASTE = ["text/html", "audio/x-mpegurl"]

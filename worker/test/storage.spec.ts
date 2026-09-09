@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createExecutionContext, createScheduledController, env, waitOnExecutionContext } from "cloudflare:test"
 import { addRole, BASE_URL, genRandomBlob, upload, workerFetch } from "./testUtils.js"
 import worker from "../index.js"
+import { getR2 } from "../common.js"
 import { parseSize } from "../../shared/parsers.js"
 import type { PasteMetadata } from "../storage/storage.js"
 
@@ -72,8 +73,8 @@ describe("cleanExpiredInR2", () => {
     // write an R2 object directly with no customMetadata. This mimics legacy or in-flight MPU
     // objects whose expiration must be looked up from KV (the needKvLookup branch).
     const orphanKey = "~orphan_r2_object"
-    await env.R2.put(orphanKey, "stale data")
-    expect(await env.R2.head(orphanKey)).not.toBeNull()
+    await getR2(env)!.put(orphanKey, "stale data")
+    expect(await getR2(env)!.head(orphanKey)).not.toBeNull()
 
     // also seed an R2-backed paste through the normal pipeline so we exercise the
     // customMetadata.willExpireAtUnix branch with an expired entry.
@@ -81,13 +82,13 @@ describe("cleanExpiredInR2", () => {
     const big = genRandomBlob(parseSize(env.R2_THRESHOLD)! * 2)
     const seeded = await upload(ctx, { c: big, e: "70" })
     const seededName = seeded.url.slice(BASE_URL.length + 1)
-    expect(await env.R2.head(seededName)).not.toBeNull()
+    expect(await getR2(env)!.head(seededName)).not.toBeNull()
 
     // jump far into the future and run the scheduled cleanup
     await worker.scheduled(createScheduledController({ scheduledTime: new Date(2040, 0, 0) }), env, ctx)
     await waitOnExecutionContext(ctx)
 
-    expect(await env.R2.head(orphanKey)).toBeNull()
-    expect(await env.R2.head(seededName)).toBeNull()
+    expect(await getR2(env)!.head(orphanKey)).toBeNull()
+    expect(await getR2(env)!.head(seededName)).toBeNull()
   })
 })

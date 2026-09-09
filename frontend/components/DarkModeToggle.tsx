@@ -8,6 +8,11 @@ import { tst } from "../utils/overrides.js"
 
 const modeSelections = ["system", "light", "dark"]
 type ModeSelection = (typeof modeSelections)[number]
+const modeNames: Record<ModeSelection, string> = {
+  system: "跟随系统",
+  light: "浅色",
+  dark: "深色",
+}
 const icons: Record<ModeSelection, JSX.Element> = {
   system: <ComputerIcon className="size-6 inline" />,
   light: <SunIcon className="size-6 inline" />,
@@ -82,7 +87,7 @@ export function DarkModeToggle({ modeSelection, setModeSelection, className, ...
         size="sm"
         variant="light"
         className={`${tst}` + " " + className}
-        aria-label="Toggle dark mode"
+        aria-label="切换深色模式"
         style={{ visibility: "hidden" }}
         {...rest}
       >
@@ -92,13 +97,13 @@ export function DarkModeToggle({ modeSelection, setModeSelection, className, ...
   }
 
   return (
-    <Tooltip content={`Toggle dark mode (currently ${currentMode} mode)`}>
+    <Tooltip content={`切换深色模式（当前为${modeNames[currentMode]}）`}>
       <Button
         isIconOnly
         size="sm"
         variant="light"
         className={`${tst}` + " " + className}
-        aria-label="Toggle dark mode"
+        aria-label="切换深色模式"
         onPress={() => {
           const newSelected = modeSelections[(modeSelections.indexOf(currentMode) + 1) % modeSelections.length]
           setModeSelection(newSelected)

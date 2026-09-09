@@ -14,7 +14,7 @@ export function decodeBasicAuth(encodedString: string): {
 } {
   const [scheme, encodedCredentials] = encodedString.split(" ")
   if (scheme !== "Basic") {
-    throw new WorkerError(400, "Invalid authentication scheme")
+    throw new WorkerError(400, "无效的认证方式")
   }
   const credentials = atob_utf8(encodedCredentials)
   const [username, password] = credentials.split(":", 2)
@@ -38,12 +38,12 @@ export function verifyAuth(request: Request, env: Env): Response | null {
   if (request.headers.has("Authorization")) {
     const { username, password } = decodeBasicAuth(request.headers.get("Authorization")!)
     if (!passwdMap.has(username) || !compareSync(password, passwdMap.get(username)!)) {
-      throw new WorkerError(401, "incorrect passwd for basic auth")
+      throw new WorkerError(401, "basic auth 密码不正确")
     } else {
       return null
     }
   } else {
-    return new Response("HTTP basic auth is required", {
+    return new Response("需要 HTTP basic 认证", {
       status: 401,
       headers: {
         // Prompts the user for credentials.

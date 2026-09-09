@@ -11,20 +11,20 @@ export function verifyPassword(password: string): VerifyResult {
   if (password === "") {
     return [true, ""]
   } else if (password.length < MIN_PASSWD_LEN) {
-    return [false, `Password too short (${password.length} < ${MIN_PASSWD_LEN})`]
+    return [false, `密码太短（${password.length} < ${MIN_PASSWD_LEN}）`]
   } else if (password.length > MAX_PASSWD_LEN) {
-    return [false, `Password too long (${password.length} > ${MAX_PASSWD_LEN})`]
+    return [false, `密码太长（${password.length} > ${MAX_PASSWD_LEN}）`]
   } else if (password.includes("\n")) {
-    return [false, "Password should not contain newlines"]
+    return [false, "密码不能包含换行符"]
   }
   return [true, ""]
 }
 
 export function verifyName(name: string): VerifyResult {
   if (name.length < 3) {
-    return [false, "Name should have at least 3 characters"]
+    return [false, "名称至少需要 3 个字符"]
   } else if (!NAME_REGEX.test(name)) {
-    return [false, `Name ${name} not satisfying regexp ${NAME_REGEX}`]
+    return [false, `名称 ${name} 不符合正则 ${NAME_REGEX}`]
   }
   return [true, ""]
 }
@@ -32,10 +32,10 @@ export function verifyName(name: string): VerifyResult {
 export function verifyExpiration(expiration: string, maxExpirationSeconds: number): VerifyResult {
   const parsed = parseExpiration(expiration)
   if (parsed === null) {
-    return [false, `‘${expiration}’ is not a valid expiration specification`]
+    return [false, `“${expiration}” 不是有效的过期时间格式`]
   }
   if (parsed > maxExpirationSeconds) {
-    return [false, `Exceed max expiration (${parseExpirationReadable(`${maxExpirationSeconds}s`)!})`]
+    return [false, `超出最长过期时间（${parseExpirationReadable(`${maxExpirationSeconds}s`)!}）`]
   }
-  return [true, `Expires in ${parseExpirationReadable(expiration)!}`]
+  return [true, `${parseExpirationReadable(expiration)!}后过期`]
 }

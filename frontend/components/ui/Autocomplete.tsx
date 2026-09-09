@@ -152,7 +152,7 @@ export function Autocomplete({
               inputRef.current?.focus()
             }}
             className="flex-shrink-0 px-2 text-default-400 hover:text-default-700 color-tst focus:outline-none"
-            aria-label="Clear input"
+            aria-label="清空输入"
           >
             <XIcon className="w-4 h-4" />
           </button>

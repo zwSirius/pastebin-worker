@@ -60,7 +60,7 @@ export const Select = React.forwardRef<SelectHandle, SelectProps>(function Selec
   const openFocusIndex = selectedIndex >= 0 ? selectedIndex : 0
 
   const selected = items[selectedIndex]
-  const displayText = selected?.props.children || label || "Select..."
+  const displayText = selected?.props.children || label || "请选择……"
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!isOpen) {

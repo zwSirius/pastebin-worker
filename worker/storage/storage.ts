@@ -1,4 +1,4 @@
-import { dateToUnix, workerAssert, WorkerError } from "../common.js"
+import { dateToUnix, getR2, workerAssert, WorkerError } from "../common.js"
 import { parseSize } from "../../shared/parsers.js"
 import type { MetaResponse, PasteLocation } from "../../shared/interfaces.js"
 
@@ -121,7 +121,11 @@ export async function getPaste(env: Env, short: string, ctx: ExecutionContext): 
     }
 
     if (metadata.location === "R2") {
-      const object = await env.R2.get(short)
+      const r2 = getR2(env)
+      if (!r2) {
+        return null
+      }
+      const object = await r2.get(short)
       if (object === null) {
         return null
       }
@@ -141,7 +145,7 @@ export async function getPasteMetadata(env: Env, short: string): Promise<PasteMe
   if (item.value === null) {
     return null
   } else if (item.metadata === null) {
-    throw new WorkerError(500, `paste of name '${short}' has no metadata`)
+    throw new WorkerError(500, `粘贴 '${short}' 没有元数据`)
   } else {
     if (item.metadata.willExpireAtUnix < new Date().getTime() / 1000) {
       return null
@@ -174,12 +178,13 @@ export async function updatePaste(
 
   // if the paste is previous on R2, we keep it on R2 to avoid losing reference to it
   const newLocation =
-    originalMetadata.location === "R2" || options.isMPUComplete || options.contentLength > parseSize(env.R2_THRESHOLD)!
+    getR2(env) &&
+    (originalMetadata.location === "R2" || options.isMPUComplete || options.contentLength > parseSize(env.R2_THRESHOLD)!)
       ? "R2"
       : "KV"
 
   if (newLocation === "R2" && !options.isMPUComplete) {
-    await env.R2.put(pasteName, content, {
+    await getR2(env)!.put(pasteName, content, {
       customMetadata: { willExpireAtUnix: String(expirationUnix) },
     })
   }
@@ -218,9 +223,10 @@ export async function createPaste(
   const expirationUnixSpecified =
     dateToUnix(options.now) + Math.max(options.expirationSeconds, PASTE_EXPIRE_SPECIFIED_MIN)
 
-  const location = options.isMPUComplete || options.contentLength > parseSize(env.R2_THRESHOLD)! ? "R2" : "KV"
+  const location =
+    getR2(env) && (options.isMPUComplete || options.contentLength > parseSize(env.R2_THRESHOLD)!) ? "R2" : "KV"
   if (location === "R2" && !options.isMPUComplete) {
-    await env.R2.put(pasteName, content, {
+    await getR2(env)!.put(pasteName, content, {
       customMetadata: { willExpireAtUnix: String(expirationUnix) },
     })
   }
@@ -253,20 +259,24 @@ export async function pasteNameAvailable(env: Env, pasteName: string): Promise<b
   if (item.value == null) {
     return true
   } else if (item.metadata === null) {
-    throw new WorkerError(500, `paste of name '${pasteName}' has no metadata`)
+    throw new WorkerError(500, `粘贴 '${pasteName}' 没有元数据`)
   } else {
     return item.metadata.willExpireAtUnix < new Date().getTime() / 1000
   }
 }
 
 export async function deletePaste(env: Env, pasteName: string, originalMetadata: PasteMetadata): Promise<void> {
-  if (originalMetadata.location === "R2") {
-    await env.R2.delete(pasteName)
+  if (originalMetadata.location === "R2" && getR2(env)) {
+    await getR2(env)!.delete(pasteName)
   }
   await env.PB.delete(pasteName)
 }
 
 export async function cleanExpiredInR2(env: Env, controller: ScheduledController) {
+  const r2 = getR2(env)
+  if (!r2) {
+    return
+  }
   const nowUnix = controller.scheduledTime / 1000
 
   // phase 1: collect all expired keys
@@ -274,7 +284,7 @@ export async function cleanExpiredInR2(env: Env, controller: ScheduledController
 
   let cursor: string | undefined
   while (true) {
-    const listed = await env.R2.list({ cursor, limit: 1000, include: ["customMetadata"] })
+    const listed = await r2.list({ cursor, limit: 1000, include: ["customMetadata"] })
 
     // separate objects with and without custom metadata
     const needKvLookup: R2Object[] = []
@@ -309,7 +319,7 @@ export async function cleanExpiredInR2(env: Env, controller: ScheduledController
   let numCleaned = 0
   for (let i = 0; i < toDelete.length; i += 1000) {
     const batch = toDelete.slice(i, i + 1000)
-    await env.R2.delete(batch)
+    await r2.delete(batch)
     numCleaned += batch.length
   }
 

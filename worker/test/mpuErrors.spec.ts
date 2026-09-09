@@ -17,7 +17,7 @@ describe("MPU error paths", () => {
     // too short (regex requires {3,})
     const r1 = await workerFetch(ctx, new Request(`${BASE_URL}/mpu/create?n=ab`, { method: "POST" }))
     expect(r1.status).toStrictEqual(400)
-    expect(await r1.text()).toContain("illegal paste name")
+    expect(await r1.text()).toContain("非法")
 
     // contains a character outside the allowed set
     const r2 = await workerFetch(ctx, new Request(`${BASE_URL}/mpu/create?n=ab!cd`, { method: "POST" }))
@@ -30,7 +30,7 @@ describe("MPU error paths", () => {
 
     const resp = await workerFetch(ctx, new Request(`${BASE_URL}/mpu/create?n=${name}`, { method: "POST" }))
     expect(resp.status).toStrictEqual(409)
-    expect(await resp.text()).toContain("already used")
+    expect(await resp.text()).toContain("已被占用")
   })
 
   it("handleMPUCreateUpdate requires both name and password", async () => {
@@ -66,7 +66,7 @@ describe("MPU error paths", () => {
   it("handleMPUResume requires partNumber, uploadId, and key", async () => {
     const resp = await workerFetch(ctx, new Request(`${BASE_URL}/mpu/resume`, { method: "PUT", body: "x" }))
     expect(resp.status).toStrictEqual(400)
-    expect(await resp.text()).toContain("missing")
+    expect(await resp.text()).toContain("缺少")
   })
 
   it("handleMPUResume rejects request without a body", async () => {
@@ -75,7 +75,7 @@ describe("MPU error paths", () => {
       new Request(`${BASE_URL}/mpu/resume?key=k&uploadId=u&partNumber=1`, { method: "PUT" }),
     )
     expect(resp.status).toStrictEqual(400)
-    expect(await resp.text()).toContain("missing request body")
+    expect(await resp.text()).toContain("缺少请求体")
   })
 
   it("handleMPUComplete returns 400 when name does not match the upload key", async () => {
@@ -93,7 +93,7 @@ describe("MPU error paths", () => {
       }),
     )
     expect(resp.status).toStrictEqual(400)
-    expect(await resp.text()).toContain("not consistent")
+    expect(await resp.text()).toContain("不一致")
   })
 
   it("handleMPUResume returns 410 when uploadId no longer exists", async () => {
@@ -105,7 +105,7 @@ describe("MPU error paths", () => {
       }),
     )
     expect(resp.status).toStrictEqual(410)
-    expect(await resp.text()).toContain("no longer exists")
+    expect(await resp.text()).toContain("已不存在")
   })
 
   it("handleMPUAbort is idempotent for an unknown uploadId", async () => {

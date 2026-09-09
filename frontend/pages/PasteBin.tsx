@@ -83,7 +83,7 @@ export function PasteBin({ config }: { config: Env }) {
         try {
           const headResp = await fetch(pasteUrl, { method: "HEAD" })
           if (!headResp.ok) {
-            await handleFailedResp(`Error on Fetching ${pasteUrl}`, headResp)
+            await handleFailedResp(`获取 ${pasteUrl} 失败`, headResp)
             return
           }
           const contentType = headResp.headers.get("Content-Type")
@@ -98,7 +98,7 @@ export function PasteBin({ config }: { config: Env }) {
 
           const resp = await fetch(pasteUrl)
           if (!resp.ok) {
-            await handleFailedResp(`Error on Fetching ${pasteUrl}`, resp)
+            await handleFailedResp(`获取 ${pasteUrl} 失败`, resp)
             return
           }
 
@@ -115,7 +115,7 @@ export function PasteBin({ config }: { config: Env }) {
             editFilename: pasteFilename,
           })
         } catch (e) {
-          handleError(`Error on Fetching ${pasteUrl}`, e as Error)
+          handleError(`获取 ${pasteUrl} 失败`, e as Error)
         }
       })
     }
@@ -141,7 +141,7 @@ export function PasteBin({ config }: { config: Env }) {
         setPasteSetting({ ...pasteSetting, uploadKind: "manage", manageUrl: uploaded.manageUrl })
       } catch (e) {
         if ((e as Error).name !== "AbortError") {
-          handleError("Error on Uploading Paste", e as Error)
+          handleError("上传粘贴失败", e as Error)
         }
       } finally {
         if (uploadAbortRef.current === controller) uploadAbortRef.current = null
@@ -158,14 +158,14 @@ export function PasteBin({ config }: { config: Env }) {
       try {
         const resp = await fetch(pasteSetting.manageUrl, { method: "DELETE" })
         if (resp.ok) {
-          showModal("Deleted Successfully", "It may takes 60 seconds for the deletion to propagate to the world")
+          showModal("删除成功", "删除操作可能需要约 60 秒才能在全球范围内生效")
           setPasteResponse(undefined)
           setPasteSetting({ ...pasteSetting, uploadKind: "short", manageUrl: "" })
         } else {
-          await handleFailedResp("Error on Delete Paste", resp)
+          await handleFailedResp("删除粘贴失败", resp)
         }
       } catch (e) {
-        handleError("Error on Delete Paste", e as Error)
+        handleError("删除粘贴失败", e as Error)
       }
     })
   }
@@ -208,25 +208,24 @@ export function PasteBin({ config }: { config: Env }) {
         <h1 className="text-3xl">{config.INDEX_PAGE_TITLE}</h1>
         <DarkModeToggle modeSelection={modeSelection} setModeSelection={setModeSelection} />
       </div>
-      <p className="my-2">A pastebin running on Cloudflare Workers.</p>
+      <p className="my-2">一个运行在 Cloudflare Workers 上的粘贴板服务。</p>
       <p className="my-2">
-        <b>Usage</b>: paste text or drop a file, then share the returned URL. You can also use{" "}
+        <b>用法</b>：粘贴文本或拖入文件，然后分享返回的链接。你也可以使用{" "}
         <Link className={tst} href={`${config.DEPLOY_URL}/doc/curl`}>
           curl
         </Link>
-        {", the "}
+        {"、"}
         <Link className={tst} href={`${config.DEPLOY_URL}/doc/api`}>
           HTTP API
         </Link>
-        {", or as an "}
+        {"，或作为 "}
         <Link className={tst} href={`${config.DEPLOY_URL}/doc/skill.md`}>
-          AI agent skill
+          AI 智能体技能
         </Link>
-        .
+        {" 使用。"}
       </p>
       <p className="my-2">
-        <b>Warning</b>: Only for temporary share <b>(max {getMaxExpirationReadable(config)})</b>. Files could be deleted
-        without notice!
+        <b>注意</b>：仅用于临时分享 <b>（最长 {getMaxExpirationReadable(config)}）</b>。文件可能随时被删除，恕不另行通知！
       </p>
     </div>
   )
@@ -246,11 +245,11 @@ export function PasteBin({ config }: { config: Env }) {
   const submitter = (
     <div className="flex flex-row items-stretch">
       <button type="button" onClick={onStartUpload} disabled={uploadDisabled} className={uploadClass}>
-        {isManageMode ? "Update" : "Upload"}
+        {isManageMode ? "更新" : "上传"}
       </button>
       {isManageMode && (
         <button type="button" onClick={onStartDelete} disabled={deleteDisabled} className={deleteClass}>
-          Delete
+          删除
         </button>
       )}
     </div>
@@ -260,11 +259,11 @@ export function PasteBin({ config }: { config: Env }) {
     <footer className="px-3 my-4 text-center">
       <p>
         <Link href={`${config.DEPLOY_URL}/doc/tos`} className={`d-inline-block ${tst}`}>
-          Terms & Conditions
+          服务条款
         </Link>
         {" / "}
         <Link href={config.REPO} className={`d-inline-block ${tst}`}>
-          Repository
+          项目仓库
         </Link>
       </p>
     </footer>

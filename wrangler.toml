@@ -15,7 +15,7 @@ run_worker_first = true
 binding = "ASSETS"
 
 [triggers]
-# clean r2 garbage every day
+# clean r2 garbage every day; skipped automatically in KV-only mode
 crons = ["0 0 * * *"]
 
 [observability]
@@ -28,20 +28,20 @@ enabled = true
 
 [[routes]]
 # Refer to https://developers.cloudflare.com/workers/wrangler/configuration/#routes
-pattern = "shz.al"
+pattern = "doc.740319.xyz"
 custom_domain = true
 
 [[kv_namespaces]]
 binding = "PB"  # do not touch this
-id = "435f8959b9de485ea48751ba557d90f5"  # id of your KV namespace
+id = "79dd6b5e686445cb8b7f3de1bc783830"  # id of your KV namespace
 
 [[r2_buckets]]
 binding = "R2"  # do not touch this
-bucket_name = "pb-shz-al"  # bucket name of your R2 bucket
+bucket_name = ""  # empty: KV-only mode; set a real bucket name to enable R2 storage
 
 [vars]
 # must be consistent with your routes
-DEPLOY_URL = "https://shz.al"
+DEPLOY_URL = "https://doc.740319.xyz"
 
 # url to repo, displayed in the index page
 REPO = "https://github.com/SharzyL/pastebin-worker"
@@ -50,10 +50,10 @@ REPO = "https://github.com/SharzyL/pastebin-worker"
 INDEX_PAGE_TITLE = "Pastebin Worker"
 
 # the name displayed in TOS
-TOS_MAINTAINER = "Sharzy"
+TOS_MAINTAINER = "miffy"
 
 # the email displayed in TOS
-TOS_MAIL = "pb@shz.al"
+TOS_MAIL = "admin@doc.740319.xyz"
 
 # Cache-Control max-age for static pages
 CACHE_STATIC_PAGE_AGE = 7200
@@ -69,13 +69,17 @@ MAX_EXPIRATION = "90d"
 
 # A collection of {username: password} pair
 # Leave empty to disable auth
+# value must be a bcrypt hash, generate with: node scripts/bcrypt.js
+# Set it in wrangler.secret.toml (gitignored) instead of committing a real hash here.
 BASIC_AUTH = {}
 
 # Files larger than this threshold will be stored in R2
+# (ignored in KV-only mode, i.e. when bucket_name above is empty)
 R2_THRESHOLD = "20K"
 
 # File larger than this will be denied
 R2_MAX_ALLOWED = "256M"
 
 # The following mimetypes will be converted to text/plain
-DISALLOWED_MIME_FOR_PASTE = ["text/html", "audio/x-mpegurl"]
+# text/html is intentionally NOT listed so HTML pastes render in the browser
+DISALLOWED_MIME_FOR_PASTE = ["audio/x-mpegurl"]

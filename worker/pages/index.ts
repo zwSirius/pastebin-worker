@@ -38,7 +38,7 @@ export async function renderIndexPage(env: Env, pathname: string): Promise<strin
 
   // Generate complete HTML
   return `<!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
 <meta charset="UTF-8" />
 <link rel="icon" href="/favicon.ico" />

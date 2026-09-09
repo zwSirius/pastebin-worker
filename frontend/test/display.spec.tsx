@@ -234,8 +234,8 @@ describe("DisplayPaste", () => {
 
     render(<DisplayPaste config={__WRANGLER_CONFIG__} />)
 
-    expect(await screen.findByText("load anyway")).toBeInTheDocument()
-    expect(screen.getByText("Download raw")).toBeInTheDocument()
+    expect(await screen.findByText("仍然加载")).toBeInTheDocument()
+    expect(screen.getByText("下载原始文件")).toBeInTheDocument()
     expect(getCalled).toStrictEqual(false)
   })
 
@@ -300,7 +300,7 @@ describe("DisplayPaste", () => {
 
     render(<DisplayPaste config={__WRANGLER_CONFIG__} />)
 
-    const loadAnyway = await screen.findByText("load anyway")
+    const loadAnyway = await screen.findByText("仍然加载")
     await userEvent.click(loadAnyway)
 
     const article = await screen.findByRole("article")
@@ -350,7 +350,7 @@ describe("DisplayPaste", () => {
 
     render(<DisplayPaste config={__WRANGLER_CONFIG__} />)
 
-    expect(await screen.findByText("load anyway")).toBeInTheDocument()
+    expect(await screen.findByText("仍然加载")).toBeInTheDocument()
     expect(getCalled).toStrictEqual(false)
   })
 
@@ -365,7 +365,7 @@ describe("DisplayPaste", () => {
 
     render(<DisplayPaste config={__WRANGLER_CONFIG__} />)
 
-    expect(await screen.findByText(/Not a renderable file/)).toBeInTheDocument()
-    expect(screen.getByText("Download raw")).toBeInTheDocument()
+    expect(await screen.findByText(/不是可渲染的文件/)).toBeInTheDocument()
+    expect(screen.getByText("下载原始文件")).toBeInTheDocument()
   })
 })

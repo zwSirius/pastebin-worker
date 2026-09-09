@@ -140,7 +140,7 @@ ${DARK_MODE_SCRIPT}
     assetsUrl.pathname = path
     const resp = await env.ASSETS.fetch(assetsUrl)
     if (resp.status === 404) {
-      throw new WorkerError(404, `asset '${path}' not found`)
+      throw new WorkerError(404, `找不到资源 '${path}'`)
     } else {
       const pageMime = mime.getType(path) || "text/plain"
       return new Response(await resp.blob(), {
@@ -166,7 +166,7 @@ ${DARK_MODE_SCRIPT}
         },
       })
     }
-    throw new WorkerError(404, `doc page '${url.pathname}' not found`)
+    throw new WorkerError(404, `找不到文档页面 '${url.pathname}'`)
   }
 
   return null
@@ -200,7 +200,7 @@ export async function handleGet(request: Request, env: Env, ctx: ExecutionContex
 
   // when paste is not found
   if (item === null) {
-    throw new WorkerError(404, `paste of name '${name}' not found`)
+    throw new WorkerError(404, `找不到名为 '${name}' 的粘贴`)
   }
 
   const disallowedMimes = env.DISALLOWED_MIME_FOR_PASTE as readonly string[]
@@ -241,13 +241,13 @@ export async function handleGet(request: Request, env: Env, ctx: ExecutionContex
   // handle URL redirection
   if (role === "u") {
     if (item.metadata.sizeBytes > MAX_URL_REDIRECT_LEN) {
-      throw new WorkerError(400, `URL too long to be redirected (max ${MAX_URL_REDIRECT_LEN} bytes)`)
+      throw new WorkerError(400, `URL 太长，无法重定向（最大 ${MAX_URL_REDIRECT_LEN} 字节）`)
     }
     const redirectURL = await decodeMaybeStream(item.paste)
     if (isLegalUrl(redirectURL)) {
       return Response.redirect(redirectURL)
     } else {
-      throw new WorkerError(400, "cannot parse paste content as a legal URL")
+      throw new WorkerError(400, "无法将粘贴内容解析为合法 URL")
     }
   }
 
@@ -315,6 +315,13 @@ export async function handleGet(request: Request, env: Env, ctx: ExecutionContex
     ...pasteCacheHeader(env),
     ...lastModifiedHeader(item.metadata),
   }
+
+  // sandbox rendered HTML pastes: the browser auto-attaches this site's basic-auth
+  // credentials to same-origin requests, so untrusted HTML must not run same-origin
+  if (inferred_mime.startsWith("text/html")) {
+    headers["Content-Security-Policy"] = "sandbox allow-scripts allow-forms allow-popups"
+  }
+
   const exposeHeaders = ["Content-Disposition"]
 
   if (item.metadata.encryptionScheme) {

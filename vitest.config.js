@@ -13,13 +13,15 @@ export default defineConfig({
         plugins: [
           cloudflareTest({
             wrangler: {
-              configPath: "./wrangler.toml",
+              configPath: "./wrangler.test.toml",
             },
           }),
         ],
         test: {
           name: "Workers",
           include: ["worker/test/**/*.spec.ts"],
+          // 20 MiB multipart uploads are slow against the local R2 simulator
+          testTimeout: 30000,
           coverage: {
             provider: "istanbul", // v8 is not supported due for cf workers
             reporter: ["text", "json-summary", "html", "json"],

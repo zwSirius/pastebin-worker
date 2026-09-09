@@ -53,10 +53,10 @@ async function multipartToMap(req: Request, sizeLimit: string): Promise<Map<stri
     }
   } catch (err) {
     if (err instanceof MaxFileSizeExceededError) {
-      throw new WorkerError(413, `payload too large (max ${sizeLimit} allowed)`)
+      throw new WorkerError(413, `内容过大（最大允许 ${sizeLimit}）`)
     } else if (err instanceof MultipartParseError) {
       console.warn("Failed to parse multipart request:", err.message)
-      throw new WorkerError(400, "Failed to parse multipart request")
+      throw new WorkerError(400, "解析 multipart 请求失败")
     } else {
       throw err
     }
@@ -92,20 +92,20 @@ export async function handlePostOrPut(
   } else if (url.pathname === "/mpu/complete") {
     isMPUComplete = true // we will handle mpu complete later since it is uploaded with formdata
   } else if (url.pathname.startsWith("/mpu/")) {
-    throw new WorkerError(400, "illegal mpu operation")
+    throw new WorkerError(400, "非法的 mpu 操作")
   }
 
   const contentType = request.headers.get("Content-Type") || ""
 
   // parse formdata
   if (!contentType.includes("multipart/form-data")) {
-    throw new WorkerError(400, `bad usage, please use 'multipart/form-data' instead of ${contentType}`)
+    throw new WorkerError(400, `用法错误，请使用 'multipart/form-data' 而不是 ${contentType}`)
   }
 
   const parts = await multipartToMap(request, env.R2_MAX_ALLOWED)
 
   if (!parts.has("c")) {
-    throw new WorkerError(400, "cannot find content in formdata")
+    throw new WorkerError(400, "formdata 中找不到内容")
   }
   const { filename, content, contentAsString, contentLength } = parts.get("c")!
   const nameFromForm = parts.get("n")?.contentAsString()
@@ -121,7 +121,7 @@ export async function handlePostOrPut(
   // parse expiration
   let expirationSeconds = parseExpiration(expire)
   if (expirationSeconds === null) {
-    throw new WorkerError(400, `‘${expire}’ is not a valid expiration specification`)
+    throw new WorkerError(400, `“${expire}” 不是有效的过期时间格式`)
   }
   const maxExpiration = parseExpiration(env.MAX_EXPIRATION)!
   if (expirationSeconds > maxExpiration) {
@@ -136,7 +136,7 @@ export async function handlePostOrPut(
 
   // check if name is legal
   if (nameFromForm !== undefined && isPut) {
-    throw new WorkerError(400, `Cannot set name for a PUT request`)
+    throw new WorkerError(400, `PUT 请求不能设置名称`)
   }
   if (nameFromForm !== undefined) {
     const [ok, msg] = verifyName(nameFromForm)
@@ -165,14 +165,14 @@ export async function handlePostOrPut(
     if (!isMPUComplete) {
       const parsed = parsePath(url.pathname)
       if (parsed.password === undefined) {
-        throw new WorkerError(403, `no password for PUT request`)
+        throw new WorkerError(403, `PUT 请求缺少密码`)
       }
       pasteName = parsed.name
       password = parsed.password
     } else {
       pasteName = url.searchParams.get("name") || undefined
       if (pasteName === undefined) {
-        throw new WorkerError(400, `no name for MPU complete`)
+        throw new WorkerError(400, `MPU 完成请求缺少名称`)
       }
     }
 
@@ -180,12 +180,12 @@ export async function handlePostOrPut(
 
     const originalMetadata = await getPasteMetadata(env, pasteName)
     if (originalMetadata === null) {
-      throw new WorkerError(404, `paste of name ‘${pasteName}’ is not found`)
+      throw new WorkerError(404, `找不到名为 “${pasteName}” 的粘贴`)
     }
 
     // no need to check password for MPCComplete, it is already checked on creation
     if (!isMPUComplete && !timingSafeEqual(password, originalMetadata.passwd)) {
-      throw new WorkerError(403, `incorrect password for paste ‘${pasteName}’`)
+      throw new WorkerError(403, `粘贴 “${pasteName}” 的密码不正确`)
     }
 
     const newPasswd = passwdFromForm || originalMetadata.passwd
@@ -214,12 +214,12 @@ export async function handlePostOrPut(
       if (url.searchParams.has("name")) {
         pasteName = url.searchParams.get("name")!
       } else {
-        throw new WorkerError(400, `no name for MPU complete`)
+        throw new WorkerError(400, `MPU 完成请求缺少名称`)
       }
     } else if (nameFromForm !== undefined) {
       pasteName = "~" + nameFromForm
       if (!(await pasteNameAvailable(env, pasteName))) {
-        throw new WorkerError(409, `name '${pasteName}' is already used`)
+        throw new WorkerError(409, `名称 “${pasteName}” 已被占用`)
       }
     } else {
       pasteName = genRandStr(isPrivate ? PRIVATE_PASTE_NAME_LEN : PASTE_NAME_LEN)

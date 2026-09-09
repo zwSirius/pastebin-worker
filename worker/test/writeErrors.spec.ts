@@ -49,7 +49,7 @@ describe("write error paths — content/format validation", () => {
 
     const resp = await workerFetch(ctx, new Request(`${BASE_URL}/mpu/bogus`, { method: "POST", body: fd }))
     expect(resp.status).toStrictEqual(400)
-    expect(await resp.text()).toContain("illegal mpu operation")
+    expect(await resp.text()).toContain("非法的 mpu 操作")
   })
 })
 
@@ -122,7 +122,7 @@ describe("write error paths — MPU complete name validation", () => {
       }),
     )
     expect(resp.status).toStrictEqual(400)
-    expect(await resp.text()).toContain("no name for MPU complete")
+    expect(await resp.text()).toContain("MPU 完成请求缺少名称")
   })
 
   it("PUT /mpu/complete without name returns 400", async () => {
@@ -134,6 +134,6 @@ describe("write error paths — MPU complete name validation", () => {
       }),
     )
     expect(resp.status).toStrictEqual(400)
-    expect(await resp.text()).toContain("no name for MPU complete")
+    expect(await resp.text()).toContain("MPU 完成请求缺少名称")
   })
 })

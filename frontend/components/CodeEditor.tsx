@@ -28,9 +28,9 @@ interface TabSetting {
 function formatTabSetting(s: TabSetting, forHuman: boolean) {
   if (forHuman) {
     if (s.char === "tab") {
-      return `Tab: ${s.width}`
+      return `制表符：${s.width}`
     } else {
-      return `Spaces: ${s.width}`
+      return `空格：${s.width}`
     }
   } else {
     return `${s.char} ${s.width}`
@@ -146,8 +146,8 @@ export function CodeEditor({
           className="flex-1"
           classNames={inputOverrides}
           type={"text"}
-          label={"File name"}
-          placeholder={"No filename"}
+          label={"文件名"}
+          placeholder={"无文件名"}
           size={"sm"}
           value={filename || ""}
           onValueChange={setFilename}
@@ -156,7 +156,7 @@ export function CodeEditor({
         <Autocomplete
           className={"max-w-[8em]"}
           classNames={autoCompleteOverrides}
-          label={"Language"}
+          label={"语言"}
           size={"sm"}
           isClearable
           defaultItems={availableLanguages.map((lang) => ({ key: lang }))}
@@ -175,7 +175,7 @@ export function CodeEditor({
         <Select
           ref={refIndentWith}
           size={"sm"}
-          label={"Indent With"}
+          label={"缩进方式"}
           className={"w-[6em] text-foreground"}
           classNames={selectOverrides}
           selectedKeys={[formatTabSetting(tabSetting, false)]}
@@ -228,7 +228,7 @@ export function CodeEditor({
             onKeyDown={handleKeyDown}
             value={content}
             spellCheck={false}
-            aria-label={"Paste editor"}
+            aria-label={"粘贴编辑器"}
           ></textarea>
         </div>
         {content && !disabled && (
@@ -240,7 +240,7 @@ export function CodeEditor({
             }}
             tabIndex={-1}
             className="absolute top-3 right-3 text-default-400 hover:text-default-700 transition-colors"
-            aria-label="Clear editor"
+            aria-label="清空编辑器"
           >
             <XIcon className="w-4 h-4" />
           </button>

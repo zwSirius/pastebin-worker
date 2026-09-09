@@ -44,7 +44,7 @@ export function DisplayPaste({ config }: { config: Env }) {
     try {
       const resp = await fetch(pasteUrl)
       if (!resp.ok) {
-        await handleFailedResp("Failed to Fetch Paste", resp)
+        await handleFailedResp("获取粘贴失败", resp)
         return
       }
       const scheme: EncryptionScheme | null = resp.headers.get("X-PB-Encryption-Scheme") as EncryptionScheme | null
@@ -79,15 +79,14 @@ export function DisplayPaste({ config }: { config: Env }) {
         try {
           key = await decodeKey(scheme, keyString)
         } catch (err) {
-          showModal("Invalid decryption key", (err as Error).message)
+          showModal("解密密钥无效", (err as Error).message)
           return
         }
         const decrypted = await decrypt(scheme, key, respBytes)
         if (!decrypted) {
           showModal(
-            "Decryption failed",
-            "Could not decrypt the paste with the provided key. The URL fragment may be wrong, " +
-              "or the paste has been replaced or corrupted.",
+            "解密失败",
+            "无法使用提供的密钥解密该粘贴。可能是 URL 片段有误，或者粘贴已被替换或损坏。",
           )
           return
         }
@@ -99,7 +98,7 @@ export function DisplayPaste({ config }: { config: Env }) {
         setGuessedEncoding(encoding)
       }
     } catch (e) {
-      showModal(`Error on fetching ${pasteUrl}`, (e as Error).toString())
+      showModal(`获取 ${pasteUrl} 失败`, (e as Error).toString())
       console.error(e)
     } finally {
       setIsLoading(false)
@@ -130,7 +129,7 @@ export function DisplayPaste({ config }: { config: Env }) {
       try {
         const headResp = await fetch(pasteUrl, { method: "HEAD" })
         if (!headResp.ok) {
-          await handleFailedResp(`Error on Fetching ${pasteUrl}`, headResp)
+          await handleFailedResp(`获取 ${pasteUrl} 失败`, headResp)
           return
         }
         const contentType = headResp.headers.get("Content-Type")
@@ -184,7 +183,7 @@ export function DisplayPaste({ config }: { config: Env }) {
           contentType: effectiveContentType,
         })
       } catch (e) {
-        showModal(`Error on Fetching ${pasteUrl}`, (e as Error).toString())
+        showModal(`获取 ${pasteUrl} 失败`, (e as Error).toString())
         console.error(e)
       } finally {
         setIsLoading(false)

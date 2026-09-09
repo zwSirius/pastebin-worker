@@ -123,9 +123,9 @@ export function DisplayPasteView(props: DisplayPasteViewProps) {
     <div className="absolute top-[50%] left-[50%] translate-[-50%] flex flex-col items-center w-full">
       <div className="text-foreground-600 mb-2">{`${pasteFile?.name} (${formatSize(pasteFile.size)})`}</div>
       <div className="w-fit text-center">
-        This file seems to be binary or not in UTF-8{guessedEncoding ? ` (${guessedEncoding} guessed). ` : ". "}
+        该文件似乎是二进制文件或不是 UTF-8 编码{guessedEncoding ? `（推测为 ${guessedEncoding}）。` : "。"}
         <button className="text-primary-500 inline" onClick={() => setForceShowBinary(true)}>
-          (Click to show)
+          （点击显示）
         </button>
       </div>
     </div>
@@ -142,9 +142,9 @@ export function DisplayPasteView(props: DisplayPasteViewProps) {
       !ct?.startsWith("audio/") &&
       !ct?.startsWith("video/")
     ) {
-      return `Not a renderable file${ct ? ` (${ct})` : ""}.`
+      return `不是可渲染的文件${ct ? `（${ct}）` : ""}。`
     }
-    return "Paste is too large to load automatically."
+    return "粘贴内容太大，无法自动加载。"
   })()
   const pendingFileIndicator = pendingInfo && !pasteFile && (
     <div className="absolute top-[50%] left-[50%] translate-[-50%] flex flex-col items-center w-full px-4">
@@ -152,15 +152,15 @@ export function DisplayPasteView(props: DisplayPasteViewProps) {
       <div className="w-fit text-center">
         {placeholderReason}{" "}
         <Link href={`${pendingInfo.rawUrl}?a`} className="text-primary-500 inline">
-          Download raw
+          下载原始文件
         </Link>
         {onLoadAnyway && (
           <>
-            {" or "}
+            {" 或 "}
             <button className="text-primary inline cursor-pointer" onClick={() => onLoadAnyway()}>
-              load anyway
+              仍然加载
             </button>
-            .
+            。
           </>
         )}
       </div>
@@ -194,19 +194,19 @@ export function DisplayPasteView(props: DisplayPasteViewProps) {
               </>
             )}
             <span className="ml-1 shrink-0">
-              {isDecrypted === "decrypted" ? " (Decrypted)" : isDecrypted === "encrypted" ? " (Encrypted)" : ""}
+              {isDecrypted === "decrypted" ? "（已解密）" : isDecrypted === "encrypted" ? "（已加密）" : ""}
             </span>
           </h1>
           <div className="flex flex-row gap-2 items-center">
             <DarkModeToggle modeSelection={modeSelection} setModeSelection={setModeSelection} />
             {showFileContent && (
-              <Tooltip content={`Copy to clipboard`}>
+              <Tooltip content={`复制到剪贴板`}>
                 <CopyWidget variant="light" className={buttonClasses} getCopyContent={() => pasteStringContent!} />
               </Tooltip>
             )}
             {pasteFile ? (
-              <Tooltip content={`Download as file`}>
-                <Button aria-label="Download" isIconOnly variant="light" className={buttonClasses}>
+              <Tooltip content={`下载为文件`}>
+                <Button aria-label="下载" isIconOnly variant="light" className={buttonClasses}>
                   <a href={downloadUrl} download={pasteFile.name}>
                     <DownloadIcon className="size-6 inline" />
                   </a>
@@ -214,8 +214,8 @@ export function DisplayPasteView(props: DisplayPasteViewProps) {
               </Tooltip>
             ) : (
               (pendingInfo || mediaInfo) && (
-                <Tooltip content={`Download as file`}>
-                  <Button aria-label="Download" isIconOnly variant="light" className={buttonClasses}>
+                <Tooltip content={`下载为文件`}>
+                  <Button aria-label="下载" isIconOnly variant="light" className={buttonClasses}>
                     <a href={(pendingInfo ?? mediaInfo)!.rawUrl} download={placeholderName}>
                       <DownloadIcon className="size-6 inline" />
                     </a>
@@ -229,7 +229,7 @@ export function DisplayPasteView(props: DisplayPasteViewProps) {
           <div className={`w-full bg-default-100 rounded-lg p-3 relative ${tst}`}>
             {isLoading ? (
               <div className="h-[10em] flex items-center justify-center">
-                <CircularProgress label={"Loading..."} />
+                <CircularProgress label={"加载中……"} />
               </div>
             ) : mediaInfo && !pasteFile && mediaInfoKind ? (
               <div>
@@ -259,7 +259,7 @@ export function DisplayPasteView(props: DisplayPasteViewProps) {
                         <span>{`(${formatSize(pasteFile.size)})`}</span>
                         {forceShowBinary && (
                           <button className="ml-2 text-primary-500" onClick={() => setForceShowBinary(false)}>
-                            (Click to hide)
+                            （点击隐藏）
                           </button>
                         )}
                         {pasteLang && <span className={"grow text-right"}>{pasteLang}</span>}

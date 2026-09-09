@@ -31,7 +31,7 @@ export function CopyWidget({ className, getCopyContent, ...rest }: CopyIconProps
       isIconOnly
       size="sm"
       variant="light"
-      aria-label="Copy"
+      aria-label="复制"
       className={`focus:ring-0 hover:bg-default-200 ${className}`}
       onPress={onCopy}
       {...rest}

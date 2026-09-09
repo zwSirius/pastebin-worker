@@ -35,7 +35,7 @@ export async function uploadPaste(
   async function constructContent(): Promise<File> {
     if (editorState.editKind === "file") {
       if (editorState.file === null) {
-        throw new ErrorWithTitle("Error on Preparing Upload", "No file selected")
+        throw new ErrorWithTitle("准备上传失败", "未选择文件")
       }
       if (pasteSetting.doEncrypt) {
         const { key, ciphertext } = await genAndEncrypt(encryptionScheme, await editorState.file.bytes())
@@ -48,7 +48,7 @@ export async function uploadPaste(
       }
     } else {
       if (editorState.editContent.length === 0) {
-        throw new ErrorWithTitle("Error on Preparing Upload", "Empty paste")
+        throw new ErrorWithTitle("准备上传失败", "内容为空")
       }
       if (pasteSetting.doEncrypt) {
         const { key, ciphertext } = await genAndEncrypt(encryptionScheme, editorState.editContent)
@@ -87,7 +87,7 @@ export async function uploadPaste(
     }
   } catch (e) {
     if (e instanceof UploadError) {
-      throw new ErrorWithTitle("Error on Upload", e.message)
+      throw new ErrorWithTitle("上传失败", e.message)
     }
     throw e
   } finally {

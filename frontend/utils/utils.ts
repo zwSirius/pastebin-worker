@@ -15,13 +15,13 @@ export { ErrorWithTitle } from "./errors.js"
 export function verifyFileSize(size: number, config: Env): [boolean, string] {
   const max = parseSize(config.R2_MAX_ALLOWED)
   if (max === null || size <= max) return [true, ""]
-  return [false, `File too large (${formatSize(size)} > ${formatSize(max)})`]
+  return [false, `文件太大（${formatSize(size)} > ${formatSize(max)}）`]
 }
 
 export function formatSize(size: number): string {
   if (!size) return "0"
   if (size < 1024) {
-    return `${size} Bytes`
+    return `${size} 字节`
   } else if (size < 1024 * 1024) {
     return `${(size / 1024).toFixed(2)} KB`
   } else if (size < 1024 * 1024 * 1024) {
@@ -39,15 +39,15 @@ export function verifyManageUrl(url: string, config: Env): [boolean, string] {
   try {
     const url_parsed = new URL(url)
     if (url_parsed.origin !== config.DEPLOY_URL) {
-      return [false, `URL should starts with ${config.DEPLOY_URL}`]
+      return [false, `URL 应以 ${config.DEPLOY_URL} 开头`]
     } else if (!url_parsed.pathname.includes(PASSWD_SEP)) {
-      return [false, `URL should contain a colon`]
+      return [false, `URL 应包含一个冒号`]
     } else {
       return [true, ""]
     }
   } catch (e) {
     if (e instanceof TypeError) {
-      return [false, "Invalid URL"]
+      return [false, "无效的 URL"]
     } else {
       throw e
     }

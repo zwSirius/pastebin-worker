@@ -36,7 +36,7 @@ describe("doc pages", () => {
     for (const page of ["/doc", "/doc/", "/doc/missing", "/doc/cli", "/doc/missing.md"]) {
       const resp = await workerFetch(ctx, `${BASE_URL}${page}`)
       expect(resp.status, `visiting ${page}`).toStrictEqual(404)
-      expect(await resp.text(), `visiting ${page}`).toContain("doc page")
+      expect(await resp.text(), `visiting ${page}`).toContain("文档页面")
     }
   })
 

@@ -19,7 +19,7 @@ export function useErrorModal() {
   }
 
   async function handleFailedResp(defaultTitle: string, resp: Response) {
-    const statusText = resp.statusText === "error" ? "Unknown error" : resp.statusText
+    const statusText = resp.statusText === "error" ? "未知错误" : resp.statusText
     const errText = (await resp.text()) || statusText
     showModal(defaultTitle, errText)
   }
@@ -46,7 +46,7 @@ export function useErrorModal() {
           </ModalBody>
           <ModalFooter>
             <Button variant="solid" onPress={onClose}>
-              Close
+              关闭
             </Button>
           </ModalFooter>
         </ModalContent>

@@ -45,10 +45,10 @@ export function parseExpirationReadable(expirationStr: string): string | null {
 
   const num = parseFloat(expirationStr)
   const lastChar = expirationStr[expirationStr.length - 1]
-  if (lastChar === "m") return `${num} minute${num > 1 ? "s" : ""}`
-  else if (lastChar === "h") return `${num} hour${num > 1 ? "s" : ""}`
-  else if (lastChar === "d") return `${num} day${num > 1 ? "s" : ""}`
-  return `${num} second${num > 1 ? "s" : ""}`
+  if (lastChar === "m") return `${num} 分钟`
+  else if (lastChar === "h") return `${num} 小时`
+  else if (lastChar === "d") return `${num} 天`
+  return `${num} 秒`
 }
 
 export interface ParsedPath {

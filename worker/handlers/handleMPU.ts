@@ -1,6 +1,6 @@
 import type { MPUCreateResponse } from "../../shared/interfaces.js"
 import { NAME_REGEX, PASTE_NAME_LEN, PRIVATE_PASTE_NAME_LEN } from "../../shared/constants.js"
-import { dateToUnix, genRandStr, WorkerError, timingSafeEqual } from "../common.js"
+import { dateToUnix, genRandStr, getR2, WorkerError, timingSafeEqual } from "../common.js"
 import { getPasteMetadata, pasteNameAvailable } from "../storage/storage.js"
 import { parseExpiration, parseSize } from "../../shared/parsers.js"
 
@@ -16,6 +16,10 @@ function mpuExpireMetadata(url: URL, env: Env): Record<string, string> {
 // POST /mpu/create?n=<optional n>&p=<optional isPrivate>&e=<optional expire>
 // returns JSON { name: string, key: string, uploadId: string }
 export async function handleMPUCreate(request: Request, env: Env): Promise<Response> {
+  const r2 = getR2(env)
+  if (!r2) {
+    throw new WorkerError(501, "此部署没有 R2 存储，不支持分片上传")
+  }
   const url = new URL(request.url)
   const n = url.searchParams.get("n")
   const isPrivate = url.searchParams.get("p") !== null
@@ -23,17 +27,17 @@ export async function handleMPUCreate(request: Request, env: Env): Promise<Respo
   let name: string | undefined
   if (n) {
     if (!NAME_REGEX.test(n)) {
-      throw new WorkerError(400, `illegal paste name ‘${n}’ for MPU create`)
+      throw new WorkerError(400, `MPU 创建时粘贴名称 “${n}” 非法`)
     }
     name = "~" + n
     if (!(await pasteNameAvailable(env, name))) {
-      throw new WorkerError(409, `name ‘${name}’ is already used`)
+      throw new WorkerError(409, `名称 “${name}” 已被占用`)
     }
   } else {
     name = genRandStr(isPrivate ? PRIVATE_PASTE_NAME_LEN : PASTE_NAME_LEN)
   }
 
-  const multipartUpload = await env.R2.createMultipartUpload(name, {
+  const multipartUpload = await r2.createMultipartUpload(name, {
     customMetadata: mpuExpireMetadata(url, env),
   })
   const resp: MPUCreateResponse = {
@@ -47,22 +51,26 @@ export async function handleMPUCreate(request: Request, env: Env): Promise<Respo
 // POST /mpu/create-update?name=<name>&password=<password>
 // returns JSON { name: string, key: string, uploadId: string }
 export async function handleMPUCreateUpdate(request: Request, env: Env): Promise<Response> {
+  const r2 = getR2(env)
+  if (!r2) {
+    throw new WorkerError(501, "此部署没有 R2 存储，不支持分片上传")
+  }
   const url = new URL(request.url)
   const name = url.searchParams.get("name")
   const password = url.searchParams.get("password")
   if (name === null || password === null) {
-    throw new WorkerError(400, `missing name or password (password) in searchParams`)
+    throw new WorkerError(400, `searchParams 中缺少 name 或 password`)
   }
 
   const metadata = await getPasteMetadata(env, name)
   if (metadata === null) {
-    throw new WorkerError(404, `paste of name ‘${name}’ is not found`)
+    throw new WorkerError(404, `找不到名为 “${name}” 的粘贴`)
   }
   if (!timingSafeEqual(password, metadata.passwd)) {
-    throw new WorkerError(403, `incorrect password for paste ‘${name}’`)
+    throw new WorkerError(403, `粘贴 “${name}” 的密码不正确`)
   }
 
-  const multipartUpload = await env.R2.createMultipartUpload(name, {
+  const multipartUpload = await r2.createMultipartUpload(name, {
     customMetadata: mpuExpireMetadata(url, env),
   })
   const resp: MPUCreateResponse = {
@@ -76,20 +84,24 @@ export async function handleMPUCreateUpdate(request: Request, env: Env): Promise
 // PUT /mpu/resume?key=<key>&uploadId=<uploadId>&partNumber=<partNumber>
 // return JSON { partNumber: number, etag: string }
 export async function handleMPUResume(request: Request, env: Env): Promise<Response> {
+  const r2 = getR2(env)
+  if (!r2) {
+    throw new WorkerError(501, "此部署没有 R2 存储，不支持分片上传")
+  }
   const url = new URL(request.url)
 
   const uploadId = url.searchParams.get("uploadId")
   const partNumberString = url.searchParams.get("partNumber")
   const key = url.searchParams.get("key")
   if (partNumberString === null || uploadId === null || key === null) {
-    throw new WorkerError(400, "missing partNumber or uploadId or key in searchParams")
+    throw new WorkerError(400, "searchParams 中缺少 partNumber、uploadId 或 key")
   }
   if (request.body === null) {
-    throw new WorkerError(400, "missing request body")
+    throw new WorkerError(400, "缺少请求体")
   }
 
   const partNumber = parseInt(partNumberString)
-  const multipartUpload = env.R2.resumeMultipartUpload(key, uploadId)
+  const multipartUpload = r2.resumeMultipartUpload(key, uploadId)
   let uploadedPart: R2UploadedPart
   try {
     uploadedPart = await multipartUpload.uploadPart(partNumber, request.body)
@@ -98,7 +110,7 @@ export async function handleMPUResume(request: Request, env: Env): Promise<Respo
     // throw transient service errors here, but those are rare enough that lumping
     // them as 410 is acceptable — the client retries from /mpu/create either way.
     console.warn(`MPU resume failed for key=${key}, uploadId=${uploadId}, part=${partNumber}: ${String(e)}`)
-    throw new WorkerError(410, "multipart upload no longer exists; please retry from /mpu/create")
+    throw new WorkerError(410, "分片上传已不存在，请从 /mpu/create 重试")
   }
   return new Response(JSON.stringify(uploadedPart))
 }
@@ -109,14 +121,18 @@ export async function handleMPUResume(request: Request, env: Env): Promise<Respo
 // to whoever initiated the upload and aren't stored elsewhere.
 // Idempotent: an unknown / already-aborted / completed uploadId still returns 204.
 export async function handleMPUAbort(request: Request, env: Env): Promise<Response> {
+  const r2 = getR2(env)
+  if (!r2) {
+    throw new WorkerError(501, "此部署没有 R2 存储，不支持分片上传")
+  }
   const url = new URL(request.url)
   const uploadId = url.searchParams.get("uploadId")
   const key = url.searchParams.get("key")
   if (uploadId === null || key === null) {
-    throw new WorkerError(400, "missing uploadId or key in searchParams")
+    throw new WorkerError(400, "searchParams 中缺少 uploadId 或 key")
   }
   try {
-    await env.R2.resumeMultipartUpload(key, uploadId).abort()
+    await r2.resumeMultipartUpload(key, uploadId).abort()
   } catch (e) {
     console.warn(`MPU abort failed for key=${key}, uploadId=${uploadId}: ${String(e)}`)
   }
@@ -128,17 +144,21 @@ export async function handleMPUAbort(request: Request, env: Env): Promise<Respon
 //   - field `c` is interpreted as JSON { partNumber: number, etag: string }[]
 //   - field `n` is ignored
 export async function handleMPUComplete(request: Request, env: Env, completeBody: R2UploadedPart[]): Promise<R2Object> {
+  const r2 = getR2(env)
+  if (!r2) {
+    throw new WorkerError(501, "此部署没有 R2 存储，不支持分片上传")
+  }
   const url = new URL(request.url)
   const uploadId = url.searchParams.get("uploadId")
   const key = url.searchParams.get("key")
   const name = url.searchParams.get("name")
   if (uploadId === null || key === null || name === null) {
-    throw new WorkerError(400, `no uploadId or key for MPU complete`)
+    throw new WorkerError(400, `MPU 完成请求缺少 uploadId 或 key`)
   }
 
-  const multipartUpload = env.R2.resumeMultipartUpload(key, uploadId)
+  const multipartUpload = r2.resumeMultipartUpload(key, uploadId)
   if (name !== multipartUpload.key) {
-    throw new WorkerError(400, `name ‘${name}’ is not consistent with the originally specified name`)
+    throw new WorkerError(400, `名称 “${name}” 与最初指定的名称不一致`)
   }
 
   let object: R2Object
@@ -146,16 +166,16 @@ export async function handleMPUComplete(request: Request, env: Env, completeBody
     object = await multipartUpload.complete(completeBody)
   } catch (e) {
     console.warn(`MPU complete failed for key=${key}, uploadId=${uploadId}: ${String(e)}`)
-    throw new WorkerError(410, "multipart upload no longer exists; please retry from /mpu/create")
+    throw new WorkerError(410, "分片上传已不存在，请从 /mpu/create 重试")
   }
   if (object.size > parseSize(env.R2_MAX_ALLOWED)!) {
     // Best-effort cleanup; if delete fails we still want the 413 to reach the user.
     try {
-      await env.R2.delete(object.key)
+      await r2.delete(object.key)
     } catch (e) {
       console.warn(`failed to delete oversized MPU object '${object.key}': ${String(e)}`)
     }
-    throw new WorkerError(413, `payload too large (max ${env.R2_MAX_ALLOWED} allowed)`)
+    throw new WorkerError(413, `内容过大（最大允许 ${env.R2_MAX_ALLOWED}）`)
   }
   return object
 }

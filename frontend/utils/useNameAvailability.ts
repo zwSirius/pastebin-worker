@@ -33,7 +33,7 @@ export function useNameAvailability(name: string, deployUrl: string, enabled: bo
           if (controller.signal.aborted) return
           if (resp.status === 404) setState({ status: "available" })
           else if (resp.status === 200) setState({ status: "taken" })
-          else setState({ status: "error", message: `Unexpected status ${resp.status}` })
+          else setState({ status: "error", message: `意外的状态码 ${resp.status}` })
         })
         .catch((e: Error) => {
           if (e.name === "AbortError") return

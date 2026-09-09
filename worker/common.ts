@@ -65,3 +65,11 @@ export function timingSafeEqual(a: string | undefined | null, b: string): boolea
   if (bufA.byteLength !== bufB.byteLength) return false
   return crypto.subtle.timingSafeEqual(bufA, bufB)
 }
+
+// The R2 binding is optional: wrangler.toml keeps the [[r2_buckets]] section
+// with an empty bucket_name in KV-only mode, and scripts/wrangler.mjs strips
+// the section before deploying, so the generated Env type may or may not
+// declare R2. Read it through a cast that is valid in both modes.
+export function getR2(env: Env): R2Bucket | undefined {
+  return (env as Env & { R2?: R2Bucket }).R2
+}

@@ -101,7 +101,7 @@ export function Input({
             onMouseDown={(e) => e.preventDefault()}
             onClick={handleClear}
             className="flex-shrink-0 text-default-400 hover:text-default-700 color-tst focus:outline-none"
-            aria-label="Clear input"
+            aria-label="清空输入"
           >
             <XIcon className="w-4 h-4" />
           </button>

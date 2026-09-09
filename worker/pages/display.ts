@@ -118,7 +118,7 @@ export async function renderDisplayPage(
   const { jsFile, cssPaths } = getAssetPaths(manifest, "display.html")
 
   return `<!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
 <meta charset="UTF-8" />
 <link rel="icon" href="/favicon.ico" />

@@ -61,10 +61,10 @@ describe("Pastebin", () => {
     const title = screen.getByText("Pastebin Worker")
     expect(title).toBeInTheDocument()
 
-    const editor = screen.getByRole("textbox", { name: "Paste editor" })
+    const editor = screen.getByRole("textbox", { name: "粘贴编辑器" })
     expect(editor).toBeInTheDocument()
 
-    const submitter = screen.getByRole("button", { name: "Upload" })
+    const submitter = screen.getByRole("button", { name: "上传" })
     expect(submitter).toBeInTheDocument()
     expect(submitter).not.toBeEnabled()
 
@@ -74,17 +74,17 @@ describe("Pastebin", () => {
     await userEvent.click(submitter)
 
     await new Promise((resolve) => setTimeout(resolve, 1000))
-    const urlShow = screen.getByRole("textbox", { name: "Raw URL" })
+    const urlShow = screen.getByRole("textbox", { name: "原始链接" })
     expect((urlShow as HTMLInputElement).value).toStrictEqual(mockedPasteUpload.url)
 
-    const manageUrlShow = screen.getByRole("textbox", { name: "Manage URL" })
+    const manageUrlShow = screen.getByRole("textbox", { name: "管理链接" })
     expect((manageUrlShow as HTMLInputElement).value).toStrictEqual(mockedPasteUpload.manageUrl)
   })
 
   it("refuse illegal settings", async () => {
     render(<PasteBin config={__WRANGLER_CONFIG__} />)
     // due to bugs https://github.com/adobe/react-spectrum/discussions/8037, we need to use duplicated name here
-    const expire = screen.getByRole("textbox", { name: "Expiration" })
+    const expire = screen.getByRole("textbox", { name: "过期时间" })
     expect(expire).toBeValid()
     await userEvent.type(expire, "xxx")
     expect(expire).toBeInvalid()
@@ -96,7 +96,7 @@ describe("Pastebin admin page", () => {
     vi.stubGlobal("location", new URL("https://example.com/abcd:xxxxxxxxx"))
     render(<PasteBin config={__WRANGLER_CONFIG__} />)
 
-    const editor = screen.getByRole("textbox", { name: "Paste editor" })
+    const editor = screen.getByRole("textbox", { name: "粘贴编辑器" })
     await userEvent.click(editor) // meaningless click, just ensure useEffect is done
     expect(editor).toBeInTheDocument()
     expect((editor as HTMLTextAreaElement).value).toStrictEqual(mockedPasteContent)
