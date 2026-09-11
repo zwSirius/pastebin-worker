@@ -109,6 +109,8 @@ export function UploadedPanel({
 
   const isEncrypted = Boolean(encryptionKey)
   const isMarkdown = highlightLang === "markdown"
+  // 内容是合法 URL 且未加密时，主分享链接用 /u 跳转链接（加密内容服务器无法解密，不能重定向）
+  const isUrlRedirect = !isEncrypted && Boolean(isUrlPaste)
 
   const urlInput = (label: string, value: string, labelExtra?: React.ReactNode) => (
     <Input
@@ -152,35 +154,66 @@ export function UploadedPanel({
         ) : (
           pasteResponse && (
             <>
-              <Input
-                {...inputProps}
-                label={"展示链接"}
-                labelExtra={
-                  <UrlTooltip
-                    desc={
-                      <>
-                        适合在浏览器中查看，带语法高亮。
-                        {encryptionKey && (
-                          <>
-                            {" "}
-                            解密密钥位于 URL 中 <code className="font-mono">#</code> 之后，永远不会发送到服务器——它留在浏览器中用于客户端解密。
-                          </>
-                        )}
-                      </>
-                    }
-                    flags={DISPLAY_URL_FLAGS}
-                  />
-                }
-                color={encryptionKey ? "success" : "default"}
-                className="mb-2"
-                value={makeDecryptionUrl(pasteResponse.url, encryptionKey)}
-                endContent={
-                  <CopyWidget
-                    className={encryptionKey ? `${copyWidgetClassNames} hover:bg-success-100` : copyWidgetClassNames}
-                    getCopyContent={() => makeDecryptionUrl(pasteResponse.url, encryptionKey)}
-                  />
-                }
-              />
+              {isUrlRedirect ? (
+                urlInput(
+                  "跳转链接",
+                  withPathPrefix(pasteResponse.url, "/u"),
+                  <InfoTooltip>
+                    粘贴内容是一个 URL——接收者打开此链接会直接跳转（302）到目标 URL，适合作为分享链接。
+                  </InfoTooltip>,
+                )
+              ) : (
+                <Input
+                  {...inputProps}
+                  label={"展示链接"}
+                  labelExtra={
+                    <UrlTooltip
+                      desc={
+                        <>
+                          适合在浏览器中查看，带语法高亮。
+                          {encryptionKey && (
+                            <>
+                              {" "}
+                              解密密钥位于 URL 中 <code className="font-mono">#</code>{" "}
+                              之后，永远不会发送到服务器——它留在浏览器中用于客户端解密。
+                            </>
+                          )}
+                        </>
+                      }
+                      flags={DISPLAY_URL_FLAGS}
+                    />
+                  }
+                  color={encryptionKey ? "success" : "default"}
+                  className="mb-2"
+                  value={makeDecryptionUrl(pasteResponse.url, encryptionKey)}
+                  endContent={
+                    <CopyWidget
+                      className={encryptionKey ? `${copyWidgetClassNames} hover:bg-success-100` : copyWidgetClassNames}
+                      getCopyContent={() => makeDecryptionUrl(pasteResponse.url, encryptionKey)}
+                    />
+                  }
+                />
+              )}
+              {isUrlRedirect && (
+                <Input
+                  {...inputProps}
+                  label={"展示链接"}
+                  labelExtra={
+                    <UrlTooltip
+                      desc={<>在浏览器中查看粘贴的原始内容（此处为目标 URL 字符串），带语法高亮。</>}
+                      flags={DISPLAY_URL_FLAGS}
+                    />
+                  }
+                  className="mb-2"
+                  value={makeDecryptionUrl(pasteResponse.url)}
+                  endContent={
+                    <CopyWidget
+                      className={copyWidgetClassNames}
+                      getCopyContent={() => makeDecryptionUrl(pasteResponse.url)}
+                    />
+                  }
+                />
+              )}
               {isMarkdown && !isEncrypted && markdownUrlField(pasteResponse)}
               {urlInput(
                 "原始链接",
@@ -218,19 +251,10 @@ export function UploadedPanel({
               {moreOpen && (
                 <div id="uploaded-paste-more">
                   {!isEncrypted && !isMarkdown && markdownUrlField(pasteResponse)}
-                  {!isEncrypted &&
-                    isUrlPaste &&
-                    urlInput(
-                      "短链接",
-                      withPathPrefix(pasteResponse.url, "/u"),
-                      <InfoTooltip>粘贴内容是一个 URL——该端点会重定向（302）到它。</InfoTooltip>,
-                    )}
                   {urlInput(
                     "元数据链接",
                     withPathPrefix(pasteResponse.url, "/m"),
-                    <InfoTooltip>
-                      以 JSON 格式获取粘贴的元数据（大小、时间戳、文件名、加密方案等）。
-                    </InfoTooltip>,
+                    <InfoTooltip>以 JSON 格式获取粘贴的元数据（大小、时间戳、文件名、加密方案等）。</InfoTooltip>,
                   )}
                 </div>
               )}
