@@ -31,6 +31,18 @@ export function formatSize(size: number): string {
   }
 }
 
+const MARKDOWN_FILENAME_REGEX = /\.(md|markdown|mdown|mkd)$/i
+
+export function isMarkdownFilename(name: string): boolean {
+  return MARKDOWN_FILENAME_REGEX.test(name)
+}
+
+const HTML_FILENAME_REGEX = /\.(html?|xhtml)$/i
+
+export function isHtmlFilename(name: string): boolean {
+  return HTML_FILENAME_REGEX.test(name)
+}
+
 export function verifyExpiration(expiration: string, config: Env): [boolean, string] {
   return verifyExpirationShared(expiration, getMaxExpirationSeconds(config))
 }

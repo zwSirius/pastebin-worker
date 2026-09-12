@@ -84,6 +84,30 @@ $ curl -Fc='kawaii' -Fs=12345678 {{BASE_URL}}
 
 If `s` is omitted, a random password is generated and returned in `manageUrl`.
 
+### Password-protect a paste (encrypted sharing)
+
+```shell
+$ curl -Fc='kawaii' -Fshare-passwd=4321 {{BASE_URL}}
+```
+
+A `share-passwd` of 4-8 characters restricts who can view the paste: raw
+content and `/u/` redirects then require the password in the
+`X-PB-Share-Passwd` header, and browser navigations without the key get a
+small key-prompt page instead of the content — after the visitor enters the
+key, the page re-fetches with the key and renders the content like the
+display page would: markdown shows the rendered `/a/` article, a protected
+HTML paste renders from its own URL, images and media display inline, and
+binary content downloads. In short, sharing the raw link (or `/a/` for
+markdown) is enough for every paste type.
+
+```shell
+$ curl -H 'X-PB-Share-Passwd: 4321' {{BASE_URL}}/abcd
+kawaii
+```
+
+The content itself is stored as-is — the password only gates access. Omitting
+`share-passwd` on a `PUT` keeps the existing one.
+
 ### Private mode (longer random name)
 
 ```shell
@@ -255,7 +279,7 @@ Deletion may take a few seconds to propagate globally.
 | Status | Meaning                                                                                                                                                 |
 | -----: | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 |  `400` | Malformed request (bad field, illegal name, bad expire).                                                                                                |
-|  `403` | Wrong password when updating or deleting.                                                                                                               |
+|  `403` | Wrong password when updating or deleting, or a missing/incorrect `X-PB-Share-Passwd` header for a password-protected paste.                              |
 |  `404` | Paste not found, or already expired.                                                                                                                    |
 |  `409` | Custom name is already in use.                                                                                                                          |
 |  `413` | Request body exceeds 100 MB (platform cap, intercepted by Cloudflare before reaching the worker), or content exceeds the deployment's `R2_MAX_ALLOWED`. |

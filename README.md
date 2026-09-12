@@ -8,7 +8,8 @@ This is a pastebin running on Cloudflare workers. Try it on [shz.al](https://shz
 
 1. Share your paste with as short as 4 characters, or even customized URL.
 1. **Syntax highlighting** powered by highlight.js.
-1. Client-side encryption.
+1. Password-protected sharing: gate a paste behind a short share password.
+1. Client-side encryption (via the CLI or API).
 1. Share **markdown** file with rendered HTML.
 1. URL shortener.
 1. Smart and tweakable handling for `Content-Type` and `Content-Disposition`.

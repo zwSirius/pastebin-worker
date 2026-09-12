@@ -17,9 +17,18 @@ export function DisplayPaste({ config }: { config: Env }) {
   const [pasteLang, setPasteLang] = useState<string | undefined>(undefined)
   const [isFileBinary, setFileBinary] = useState(false)
   const [guessedEncoding, setGuessedEncoding] = useState<string | null>(null)
-  const [isDecrypted, setDecrypted] = useState<"not encrypted" | "encrypted" | "decrypted">("not encrypted")
+  const [isDecrypted, setDecrypted] = useState<"not encrypted" | "encrypted" | "protected" | "decrypted">(
+    () => (typeof window !== "undefined" && window.__PASTE_DATA__?.passwordProtected ? "protected" : "not encrypted"),
+  )
   const [forceShowBinary, setForceShowBinary] = useState(false)
   const [isLoading, setIsLoading] = useState<boolean>(false)
+  // share-password protection: the state is initialized synchronously from the
+  // SSR payload so the first client render matches the server-rendered prompt
+  const [isProtected, setProtected] = useState<boolean>(
+    () => typeof window !== "undefined" && window.__PASTE_DATA__?.passwordProtected === true,
+  )
+  const [passwordError, setPasswordError] = useState<string | null>(null)
+  const [isPasswordPending, setPasswordPending] = useState(false)
   const [pendingInfo, setPendingInfo] = useState<{
     sizeBytes: number
     rawUrl: string
@@ -37,16 +46,28 @@ export function DisplayPaste({ config }: { config: Env }) {
   const { name, ext, filename } = parsePath(url.pathname)
   const pasteUrl = `/${name}`
 
-  const fetchPasteBody = useCallback(async () => {
-    setIsLoading(true)
-    setPendingInfo(null)
-    setMediaInfo(null)
-    try {
-      const resp = await fetch(pasteUrl)
-      if (!resp.ok) {
-        await handleFailedResp("获取粘贴失败", resp)
-        return
-      }
+  const fetchPasteBody = useCallback(
+    async (sharePasswd?: string) => {
+      setIsLoading(true)
+      setPendingInfo(null)
+      setMediaInfo(null)
+      try {
+        const resp = await fetch(
+          pasteUrl,
+          sharePasswd === undefined ? undefined : { headers: { "X-PB-Share-Passwd": sharePasswd } },
+        )
+        if (!resp.ok) {
+          if (resp.status === 403) {
+            // password-protected paste: either a first fetch without the
+            // password, or a wrong password entered in the unlock form
+            setProtected(true)
+            setDecrypted("protected")
+            if (sharePasswd !== undefined) setPasswordError("密钥不正确，请重试")
+            return
+          }
+          await handleFailedResp("获取粘贴失败", resp)
+          return
+        }
       const scheme: EncryptionScheme | null = resp.headers.get("X-PB-Encryption-Scheme") as EncryptionScheme | null
       let filenameFromDisp = resp.headers.has("Content-Disposition")
         ? parseFilenameFromContentDisposition(resp.headers.get("Content-Disposition")!) || undefined
@@ -73,6 +94,7 @@ export function DisplayPaste({ config }: { config: Env }) {
           const encoding = detectUtf8(respBytes)
           setFileBinary(encoding === null)
           setGuessedEncoding(encoding)
+          if (sharePasswd !== undefined) setDecrypted("decrypted")
         }
       } else {
         let key: CryptoKey
@@ -97,30 +119,51 @@ export function DisplayPaste({ config }: { config: Env }) {
         setDecrypted("decrypted")
         setGuessedEncoding(encoding)
       }
-    } catch (e) {
-      showModal(`获取 ${pasteUrl} 失败`, (e as Error).toString())
-      console.error(e)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [pasteUrl, name, ext, filename])
+      } catch (e) {
+        showModal(`获取 ${pasteUrl} 失败`, (e as Error).toString())
+        console.error(e)
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    [pasteUrl, name, ext, filename],
+  )
+
+  const onPasswordSubmit = useCallback(
+    async (password: string) => {
+      setPasswordPending(true)
+      setPasswordError(null)
+      try {
+        await fetchPasteBody(password)
+      } finally {
+        setPasswordPending(false)
+      }
+    },
+    [fetchPasteBody],
+  )
 
   useEffect(() => {
     const initialData = window.__PASTE_DATA__
 
+    // password-protected pastes render an SSR'd unlock form; content is only
+    // fetched after the viewer submits the correct password
+    if (initialData?.passwordProtected) {
+      return
+    }
+
     if (initialData) {
-      const respBytes = Uint8Array.from(atob(initialData.content), (c) => c.charCodeAt(0))
-      const scheme = initialData.metadata.encryptionScheme as EncryptionScheme | undefined
-      const lang = url.searchParams.get("lang") || initialData.metadata.highlightLanguage
-      const inferredFilename = filename || (ext && name + ext) || initialData.metadata.filename
+      const respBytes = Uint8Array.from(atob(initialData.content!), (c) => c.charCodeAt(0))
+      const scheme = initialData.metadata?.encryptionScheme as EncryptionScheme | undefined
+      const lang = url.searchParams.get("lang") || initialData.metadata?.highlightLanguage
+      const inferredFilename = filename || (ext && name + ext) || initialData.metadata?.filename
 
       setPasteLang(lang || undefined)
       setPasteFile(new File([respBytes], inferredFilename || name))
       setPasteContentBuffer(respBytes)
-      setFileBinary(initialData.isBinary)
-      setGuessedEncoding(initialData.guessedEncoding)
+      setFileBinary(initialData.isBinary ?? false)
+      setGuessedEncoding(initialData.guessedEncoding ?? null)
       setDecrypted(scheme ? "encrypted" : "not encrypted")
-      if (initialData.metadata.filename) setMetaFilename(initialData.metadata.filename)
+      if (initialData.metadata?.filename) setMetaFilename(initialData.metadata.filename)
       return
     }
 
@@ -129,6 +172,12 @@ export function DisplayPaste({ config }: { config: Env }) {
       try {
         const headResp = await fetch(pasteUrl, { method: "HEAD" })
         if (!headResp.ok) {
+          if (headResp.status === 403) {
+            // CSR fallback (SSR failed): the paste requires a share password
+            setProtected(true)
+            setDecrypted("protected")
+            return
+          }
           await handleFailedResp(`获取 ${pasteUrl} 失败`, headResp)
           return
         }
@@ -211,6 +260,8 @@ export function DisplayPaste({ config }: { config: Env }) {
         mediaInfo={mediaInfo}
         metaFilename={metaFilename}
         onLoadAnyway={() => void fetchPasteBody()}
+        passwordPrompt={isProtected ? { error: passwordError, pending: isPasswordPending } : undefined}
+        onPasswordSubmit={(password) => void onPasswordSubmit(password)}
       />
       <ErrorModal />
     </>

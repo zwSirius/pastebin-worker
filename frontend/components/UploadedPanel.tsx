@@ -26,7 +26,7 @@ interface UploadedPanelProps extends CardProps {
   loadingProgress?: UploadProgress
   onCancel?: () => void
   pasteResponse?: PasteResponse
-  encryptionKey?: string
+  isProtected?: boolean
   highlightLang?: string
   isUrlPaste?: boolean
 }
@@ -35,11 +35,6 @@ function withPathPrefix(url: string, prefix: string): string {
   const u = new URL(url)
   u.pathname = prefix + u.pathname
   return u.toString()
-}
-
-function makeDecryptionUrl(url: string, key?: string): string {
-  const base = withPathPrefix(url, "/d")
-  return key ? `${base}#${key}` : base
 }
 
 const RAW_URL_FLAGS: { syntax: string; desc: string }[] = [
@@ -95,7 +90,7 @@ export function UploadedPanel({
   onCancel,
   pasteResponse,
   className,
-  encryptionKey,
+  isProtected,
   highlightLang,
   isUrlPaste,
   ...rest
@@ -107,10 +102,12 @@ export function UploadedPanel({
   }
   const [moreOpen, setMoreOpen] = useState<boolean>(false)
 
-  const isEncrypted = Boolean(encryptionKey)
+  const isEncrypted = Boolean(isProtected)
   const isMarkdown = highlightLang === "markdown"
-  // 内容是合法 URL 且未加密时，主分享链接用 /u 跳转链接（加密内容服务器无法解密，不能重定向）
+  const isHtml = highlightLang === "html"
+  // 内容是合法 URL 且未开启加密分享时，主分享链接用 /u 跳转链接（加密分享的内容需要密码验证，不能直接重定向）
   const isUrlRedirect = !isEncrypted && Boolean(isUrlPaste)
+  const displayUrl = pasteResponse ? withPathPrefix(pasteResponse.url, "/d") : ""
 
   const urlInput = (label: string, value: string, labelExtra?: React.ReactNode) => (
     <Input
@@ -122,11 +119,14 @@ export function UploadedPanel({
     />
   )
 
-  const markdownUrlField = (pasteResponse: PasteResponse) =>
+  const markdownUrlField = (pasteResponse: PasteResponse, needsKey?: boolean) =>
     urlInput(
       "Markdown 链接",
       withPathPrefix(pasteResponse.url, "/a"),
-      <InfoTooltip>将粘贴渲染为 GitHub 风格 Markdown（支持代码高亮和 LaTeX）。</InfoTooltip>,
+      <InfoTooltip>
+        将粘贴渲染为 GitHub 风格 Markdown（支持代码高亮和 LaTeX）。
+        {needsKey && <> 该粘贴已开启加密分享：打开后需输入密钥才能渲染查看。</>}
+      </InfoTooltip>,
     )
 
   return (
@@ -171,25 +171,21 @@ export function UploadedPanel({
                       desc={
                         <>
                           适合在浏览器中查看，带语法高亮。
-                          {encryptionKey && (
-                            <>
-                              {" "}
-                              解密密钥位于 URL 中 <code className="font-mono">#</code>{" "}
-                              之后，永远不会发送到服务器——它留在浏览器中用于客户端解密。
-                            </>
+                          {isEncrypted && (
+                            <> 该粘贴已开启加密分享：接收者打开此链接后需输入密钥才能查看内容。</>
                           )}
                         </>
                       }
                       flags={DISPLAY_URL_FLAGS}
                     />
                   }
-                  color={encryptionKey ? "success" : "default"}
+                  color={isEncrypted ? "success" : "default"}
                   className="mb-2"
-                  value={makeDecryptionUrl(pasteResponse.url, encryptionKey)}
+                  value={displayUrl}
                   endContent={
                     <CopyWidget
-                      className={encryptionKey ? `${copyWidgetClassNames} hover:bg-success-100` : copyWidgetClassNames}
-                      getCopyContent={() => makeDecryptionUrl(pasteResponse.url, encryptionKey)}
+                      className={isEncrypted ? `${copyWidgetClassNames} hover:bg-success-100` : copyWidgetClassNames}
+                      getCopyContent={() => displayUrl}
                     />
                   }
                 />
@@ -205,23 +201,31 @@ export function UploadedPanel({
                     />
                   }
                   className="mb-2"
-                  value={makeDecryptionUrl(pasteResponse.url)}
+                  value={withPathPrefix(pasteResponse.url, "/d")}
                   endContent={
                     <CopyWidget
                       className={copyWidgetClassNames}
-                      getCopyContent={() => makeDecryptionUrl(pasteResponse.url)}
+                      getCopyContent={() => withPathPrefix(pasteResponse.url, "/d")}
                     />
                   }
                 />
               )}
-              {isMarkdown && !isEncrypted && markdownUrlField(pasteResponse)}
+              {isMarkdown && markdownUrlField(pasteResponse, isEncrypted)}
+              {isHtml &&
+                urlInput(
+                  "网页链接",
+                  pasteResponse.url,
+                  <InfoTooltip>
+                    适合发送给客户：浏览器打开即渲染为网页。若已开启加密分享，客户输入密钥后即可看到渲染后的页面。
+                  </InfoTooltip>,
+                )}
               {urlInput(
                 "原始链接",
                 pasteResponse.url,
                 <UrlTooltip
                   desc={
-                    encryptionKey
-                      ? "返回粘贴的原始内容——由于该粘贴使用了客户端加密，内容为加密状态。请自行用密钥解密。"
+                    isEncrypted
+                      ? "受密钥保护：在浏览器中打开此链接会先要求输入密钥，验证后直接展示或渲染内容（HTML 会渲染为页面）；API 客户端请携带 X-PB-Share-Passwd 头。"
                       : "直接返回粘贴的原始内容，使用推断出的 Content-Type。"
                   }
                   flags={RAW_URL_FLAGS}

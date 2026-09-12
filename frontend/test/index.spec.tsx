@@ -58,7 +58,7 @@ describe("Pastebin", () => {
   it("can upload", async () => {
     render(<PasteBin config={__WRANGLER_CONFIG__} />)
 
-    const title = screen.getByText("Pastebin Worker")
+    const title = screen.getByText(__WRANGLER_CONFIG__.INDEX_PAGE_TITLE)
     expect(title).toBeInTheDocument()
 
     const editor = screen.getByRole("textbox", { name: "粘贴编辑器" })

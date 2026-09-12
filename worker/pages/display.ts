@@ -36,6 +36,56 @@ async function streamToArrayBuffer(stream: ReadableStream<Uint8Array>): Promise<
   return result.buffer
 }
 
+async function streamToHtml(reactElement: React.ReactElement): Promise<string> {
+  const stream = await renderToReadableStream(reactElement)
+  const reader = stream.getReader() as ReadableStreamDefaultReader<Uint8Array>
+  let html = ""
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    html += decode(value.buffer as ArrayBuffer)
+  }
+  return html
+}
+
+function displayHtml(env: Env, titleName: string, html: string, serializedData: SerializedPasteData): string {
+  const { jsFile, cssPaths } = getAssetPaths(manifest, "display.html")
+
+  return `<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<link rel="icon" href="/favicon.ico" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>${escapeHtml(env.INDEX_PAGE_TITLE)} / ${escapeHtml(titleName)}</title>
+${renderCssLinks(cssPaths)}
+<script>
+${DARK_MODE_SCRIPT}
+</script>
+</head>
+<body>
+<div id="root">${html}</div>
+<script id="__PASTE_DATA__" type="application/json">${JSON.stringify(serializedData)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029")}</script>
+<script>window.__PASTE_DATA__=JSON.parse(document.getElementById('__PASTE_DATA__').textContent)</script>
+<script type="module" src="/${jsFile}"></script>
+</body>
+</html>`
+}
+
+function displayConfig(env: Env): Env {
+  return {
+    DEPLOY_URL: env.DEPLOY_URL,
+    REPO: env.REPO,
+    MAX_EXPIRATION: env.MAX_EXPIRATION,
+    DEFAULT_EXPIRATION: env.DEFAULT_EXPIRATION,
+    INDEX_PAGE_TITLE: env.INDEX_PAGE_TITLE,
+  } as Env
+}
+
 export async function renderDisplayPage(
   env: Env,
   name: string,
@@ -44,6 +94,37 @@ export async function renderDisplayPage(
   paste: ArrayBuffer | ReadableStream<Uint8Array>,
   metadata: PasteMetadata,
 ): Promise<string | null> {
+  const config = displayConfig(env)
+
+  // Password-protected pastes: render only the shell with a password prompt
+  // and never embed content — the client fetches it after the password check.
+  // The filename is hidden too, so the title shows the name only.
+  if (metadata.sharePasswd) {
+    const serializedData: SerializedPasteData = { passwordProtected: true, name }
+    const reactElement = React.createElement(
+      React.StrictMode,
+      null,
+      React.createElement(DisplayPasteView, {
+        isFileBinary: false,
+        guessedEncoding: null,
+        isDecrypted: "protected",
+        forceShowBinary: false,
+        setForceShowBinary: () => {
+          // SSR: no-op
+        },
+        isLoading: false,
+        name,
+        ext: urlExt,
+        config,
+        passwordPrompt: { error: null, pending: false },
+        onPasswordSubmit: () => {
+          // SSR: no-op
+        },
+      }),
+    )
+    return displayHtml(env, name, await streamToHtml(reactElement), serializedData)
+  }
+
   // Skip SSR for encrypted files (client needs hash key to decrypt)
   if (metadata.encryptionScheme) {
     return null
@@ -76,14 +157,6 @@ export async function renderDisplayPage(
   const titleName =
     name + (urlFilename ? " / " + urlFilename : urlExt ? urlExt : metadata.filename ? " / " + metadata.filename : "")
 
-  const config: Env = {
-    DEPLOY_URL: env.DEPLOY_URL,
-    REPO: env.REPO,
-    MAX_EXPIRATION: env.MAX_EXPIRATION,
-    DEFAULT_EXPIRATION: env.DEFAULT_EXPIRATION,
-    INDEX_PAGE_TITLE: env.INDEX_PAGE_TITLE,
-  } as Env
-
   const reactElement = React.createElement(
     React.StrictMode,
     null,
@@ -106,38 +179,5 @@ export async function renderDisplayPage(
     }),
   )
 
-  const stream = await renderToReadableStream(reactElement)
-  const reader = stream.getReader() as ReadableStreamDefaultReader<Uint8Array>
-  let html = ""
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    html += decode(value.buffer as ArrayBuffer)
-  }
-
-  const { jsFile, cssPaths } = getAssetPaths(manifest, "display.html")
-
-  return `<!doctype html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8" />
-<link rel="icon" href="/favicon.ico" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>${escapeHtml(env.INDEX_PAGE_TITLE)} / ${escapeHtml(titleName)}</title>
-${renderCssLinks(cssPaths)}
-<script>
-${DARK_MODE_SCRIPT}
-</script>
-</head>
-<body>
-<div id="root">${html}</div>
-<script id="__PASTE_DATA__" type="application/json">${JSON.stringify(serializedData)
-    .replace(/</g, "\\u003c")
-    .replace(/>/g, "\\u003e")
-    .replace(/\u2028/g, "\\u2028")
-    .replace(/\u2029/g, "\\u2029")}</script>
-<script>window.__PASTE_DATA__=JSON.parse(document.getElementById('__PASTE_DATA__').textContent)</script>
-<script type="module" src="/${jsFile}"></script>
-</body>
-</html>`
+  return displayHtml(env, titleName, await streamToHtml(reactElement), serializedData)
 }

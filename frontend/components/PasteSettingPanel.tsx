@@ -1,7 +1,7 @@
 import type { CardProps } from "./ui/index.js"
 import { Card, CardBody, CardHeader, Divider, Input, Switch, Tooltip } from "./ui/index.js"
 import { verifyExpiration, verifyManageUrl } from "../utils/utils.js"
-import { verifyName, verifyPassword } from "../../shared/verify.js"
+import { verifyName, verifyPassword, verifySharePassword } from "../../shared/verify.js"
 import type { NameAvailability } from "../utils/useNameAvailability.js"
 import React from "react"
 import { CheckIcon, InfoIcon, QuestionMarkCircleIcon, SpinnerIcon, XIcon } from "./icons.js"
@@ -17,7 +17,8 @@ export interface PasteSetting {
   name: string
   manageUrl: string
 
-  doEncrypt: boolean
+  doProtect: boolean
+  sharePasswd: string
 }
 
 interface PasteSettingPanelProps extends CardProps {
@@ -59,6 +60,14 @@ function urlKindExample(kind: UploadKind, deployUrl: string): string | null {
     case "manage":
       return null
   }
+}
+
+// default share key: a 4-digit numeric code, sampled digit-by-digit so every
+// code in 0000-9999 is equally likely
+function generateShareKey(): string {
+  const digits = new Uint8Array(4)
+  crypto.getRandomValues(digits)
+  return Array.from(digits, (d) => String(d % 10)).join("")
 }
 
 interface CustomNameUI {
@@ -134,7 +143,7 @@ export function PanelSettingsPanel({
           />
           <Input
             type="password"
-            label="密码"
+            label="管理密码"
             labelExtra={
               <Tooltip
                 content={
@@ -248,35 +257,58 @@ export function PanelSettingsPanel({
           )}
         </div>
         <Divider className={`my-4 ${tst}`} />
-        <div className="pl-1 flex flex-row items-center">
-          <Switch
-            classNames={switchOverrides}
-            isSelected={setting.doEncrypt}
-            onValueChange={(v) => onSettingChange({ ...setting, doEncrypt: v })}
-          >
-           客户端加密
-          </Switch>
-          <Tooltip
-            content={
-              <div className="px-1 py-2 max-w-[20rem]">
-                <h3 className="text-normal font-bold mb-2">客户端加密</h3>
-                <div className="text-small">
-                  你的粘贴通过一个包含解密密钥的链接分享，密钥位于 URL 的 # 片段中，永远不会发送到服务器。解密在浏览器中完成，因此只有持有密钥的人（而非服务器）才能查看解密后的内容。
-                </div>
-                <div className="text-small mt-2 text-yellow-600">
-                  仅粘贴内容会被加密。文件名及其推断出的 MIME 类型对服务器和任何持有链接的人仍然可见。
-                </div>
-              </div>
-            }
-          >
-            <button
-              type="button"
-              aria-label="关于客户端加密的更多说明"
-              className="inline-flex items-center ml-2 text-default-500 hover:text-default-700 focus:outline-none focus-visible:ring-1 focus-visible:ring-default-400 rounded"
+        <div className="pl-1">
+          <div className="flex flex-row items-center flex-wrap gap-x-3 gap-y-2">
+            <Switch
+              classNames={switchOverrides}
+              isSelected={setting.doProtect}
+              onValueChange={(v) =>
+                onSettingChange({
+                  ...setting,
+                  doProtect: v,
+                  sharePasswd: v && setting.sharePasswd === "" ? generateShareKey() : setting.sharePasswd,
+                })
+              }
             >
-              <InfoIcon className="size-3.5" />
-            </button>
-          </Tooltip>
+              加密分享
+            </Switch>
+            <Tooltip
+              content={
+                <div className="px-1 py-2 max-w-[20rem]">
+                  <h3 className="text-normal font-bold mb-2">加密分享</h3>
+                  <div className="text-small">
+                    上传时为粘贴设置一个 4-8 位的分享密钥。接收者打开链接后必须输入正确的密钥才能查看或下载内容，密钥在服务器端验证。
+                  </div>
+                  <div className="text-small mt-2 text-yellow-600">
+                    注意：粘贴内容本身以明文保存在服务器上，密钥仅用于限制访问。4-8
+                    位密钥强度有限，请勿用于高度敏感的内容。
+                  </div>
+                </div>
+              }
+            >
+              <button
+                type="button"
+                aria-label="关于加密分享的更多说明"
+                className="inline-flex items-center ml-2 text-default-500 hover:text-default-700 focus:outline-none focus-visible:ring-1 focus-visible:ring-default-400 rounded"
+              >
+                <InfoIcon className="size-3.5" />
+              </button>
+            </Tooltip>
+            {setting.doProtect && (
+              <Input
+                type="text"
+                label="分享密钥"
+                value={setting.sharePasswd}
+                onValueChange={(p) => onSettingChange({ ...setting, sharePasswd: p })}
+                isRequired
+                isClearable
+                isInvalid={setting.sharePasswd.length > 0 && !verifySharePassword(setting.sharePasswd)[0]}
+                errorMessage={verifySharePassword(setting.sharePasswd)[1]}
+                placeholder="4-8 位密钥"
+                classNames={{ base: "flex-1 min-w-[12rem]", ...inputOverrides }}
+              />
+            )}
+          </div>
         </div>
       </CardBody>
       {footer}

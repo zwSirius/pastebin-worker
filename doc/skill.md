@@ -36,6 +36,9 @@ is the only way to authenticate as the owner.
 - `-Fe=<expire>` — expiration: integer/float with unit `s`/`m`/`h`/`d`
   (default seconds). E.g. `-Fe=30m`, `-Fe=14d`.
 - `-Fs=<password>` — set a specific management password.
+- `-Fshare-passwd=<key>` — protect the paste with a 4-8 character share key:
+  fetching it then requires the `X-PB-Share-Passwd: <key>` header (browsers
+  get a key prompt instead, and markdown/HTML/images render after unlock).
 - `-Flang=<lang>` — mark for syntax highlighting on the display page.
 - `-Fp=1` — private mode: 24-char unguessable random name.
 
@@ -47,6 +50,9 @@ curl -OJ {{BASE_URL}}/~<name>               # save with server filename
 curl {{BASE_URL}}/m/<name>                  # JSON metadata (size, dates, …)
 curl -I {{BASE_URL}}/<name>                 # HEAD only
 ```
+
+Password-protected pastes answer `403` unless the request carries
+`X-PB-Share-Passwd: <key>`. Metadata (`/m/`) reports `passwordProtected`.
 
 Append `?a` for `Content-Disposition: attachment`, `?mime=<mime>` to override
 the response Content-Type, or append `.<ext>` to the path to set Content-Type

@@ -101,7 +101,7 @@ describe("uploadNormal", () => {
       password: "pw",
       name: "abcd",
       highlightLanguage: "ts",
-      encryptionScheme: "AES-GCM",
+      sharePasswd: "1234",
       expire: "10m",
     })
 
@@ -114,7 +114,7 @@ describe("uploadNormal", () => {
     expect(fd.get("e")).toStrictEqual("10m")
     expect(fd.get("s")).toStrictEqual("pw")
     expect(fd.get("n")).toStrictEqual("abcd")
-    expect(fd.get("encryption-scheme")).toStrictEqual("AES-GCM")
+    expect(fd.get("share-passwd")).toStrictEqual("1234")
     expect(fd.get("lang")).toStrictEqual("ts")
     expect(fd.get("p")).toStrictEqual("1")
     expect(fd.get("c")).toBeInstanceOf(File)
@@ -205,7 +205,7 @@ describe("uploadMPU", () => {
         isPrivate: true,
         password: "pw",
         highlightLanguage: "rust",
-        encryptionScheme: "AES-GCM",
+        sharePasswd: "1234",
         expire: "1d",
       },
       progress,
@@ -238,7 +238,7 @@ describe("uploadMPU", () => {
     expect(fd.get("e")).toStrictEqual("1d")
     expect(fd.get("s")).toStrictEqual("pw")
     expect(fd.get("lang")).toStrictEqual("rust")
-    expect(fd.get("encryption-scheme")).toStrictEqual("AES-GCM")
+    expect(fd.get("share-passwd")).toStrictEqual("1234")
   })
 
   it("uses create-update endpoint and PUT on update with manageUrl password", async () => {

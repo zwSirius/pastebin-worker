@@ -47,6 +47,7 @@ case "$state" in
             '(-e --expire)'{-e,--expire}'[Expiration time]:expiration'
             '(-n --name)'{-n,--name}'[Name]:Name of paste'
             '(-s --passwd)'{-s,--passwd}'[Password]:Password of paste'
+            '(-P --share-passwd)'{-P,--share-passwd}'[Share password for viewers]:share password'
             '(-p --private)'{-p,--private}'[Make generated paste name longer for privacy]'
             '(-x --clip)'{-x,--clip}'[Clip the url to the clipboard]'
             '(-E --encrypt)'{-E,--encrypt}'[Client-side AES-GCM encryption]'
@@ -63,6 +64,7 @@ case "$state" in
 
             '(-e --expire)'{-e,--expire}'[Expiration time]:expiration'
             '(-s --passwd)'{-s,--passwd}'[Password]:Password of paste'
+            '(-P --share-passwd)'{-P,--share-passwd}'[Share password for viewers]:share password'
             '(-x --clip)'{-x,--clip}'[Clip the url to the clipboard]'
             '(-E --encrypt)'{-E,--encrypt}'[Client-side AES-GCM encryption]'
             '(-F --filename)'{-F,--filename}'[Filename to store with paste]:filename'
@@ -78,6 +80,7 @@ case "$state" in
             '(-u --url --meta)'{-u,--url}'[Make a 302 redirection]'
             '(-u --url --meta)--meta[Fetch /m/<name> metadata as JSON]'
             '(-K --key)'{-K,--key}'[Decryption key (overrides history)]:key'
+            '(-P --share-passwd)'{-P,--share-passwd}'[Share password for protected pastes]:share password'
             '--no-decrypt[Do not decrypt encrypted pastes]'
             '--save[Save under DIR using server filename]::dir:_files -/'
             '(-f --force)'{-f,--force}'[Overwrite existing file without prompting]'

@@ -9,7 +9,7 @@ import {
 } from "../storage/storage.js"
 import { DEFAULT_PASSWD_LEN, PASTE_NAME_LEN, PRIVATE_PASTE_NAME_LEN, PASSWD_SEP } from "../../shared/constants.js"
 import { parsePath, parseSize, parseExpiration } from "../../shared/parsers.js"
-import { verifyName, verifyPassword } from "../../shared/verify.js"
+import { verifyName, verifyPassword, verifySharePassword } from "../../shared/verify.js"
 import type { PasteResponse } from "../../shared/interfaces.js"
 import { MaxFileSizeExceededError, MultipartParseError, parseMultipartRequest } from "@mjackson/multipart-parser"
 import {
@@ -113,6 +113,7 @@ export async function handlePostOrPut(
   const passwdFromForm = parts.get("s")?.contentAsString()
   const expireFromForm: string | undefined = parts.get("e")?.contentAsString()
   const encryptionScheme: string | undefined = parts.get("encryption-scheme")?.contentAsString()
+  const sharePasswdFromForm: string | undefined = parts.get("share-passwd")?.contentAsString()
   const highlightLanguage = parts.get("lang")?.contentAsString()
   const expire = expireFromForm ? expireFromForm : env.DEFAULT_EXPIRATION
 
@@ -131,6 +132,12 @@ export async function handlePostOrPut(
   // check if password is legal
   if (passwdFromForm) {
     const [ok, msg] = verifyPassword(passwdFromForm)
+    if (!ok) throw new WorkerError(400, msg)
+  }
+
+  // check if the share password is legal
+  if (sharePasswdFromForm) {
+    const [ok, msg] = verifySharePassword(sharePasswdFromForm)
     if (!ok) throw new WorkerError(400, msg)
   }
 
@@ -197,6 +204,7 @@ export async function handlePostOrPut(
       filename,
       highlightLanguage,
       encryptionScheme,
+      sharePasswd: sharePasswdFromForm || originalMetadata.sharePasswd,
       isMPUComplete,
     })
     return makeResponse(
@@ -236,6 +244,7 @@ export async function handlePostOrPut(
       highlightLanguage,
       contentLength: r2Object?.size || contentLength,
       encryptionScheme,
+      sharePasswd: sharePasswdFromForm,
       isMPUComplete,
     })
 
