@@ -236,6 +236,33 @@ export async function handleGet(request: Request, env: Env, ctx: ExecutionContex
   // cache entry would bypass the check for whoever hits the same URL next
   const cacheHeaders: Headers = item.metadata.sharePasswd ? { "Cache-Control": "no-store" } : pasteCacheHeader(env)
 
+  // A browser navigating to the raw URL of a markdown paste expects the
+  // rendered article, not the plain source — send it to /a/, the same
+  // destination the share flow uses. Explicit raw modifiers (?a, ?mime) or
+  // an explicit extension/filename in the path still serve the raw content,
+  // and so do API clients (no browser navigation markers). Protected pastes
+  // are excluded: their key prompt page already fetches /a/ after unlock,
+  // and a server-side redirect would lose the key and prompt twice.
+  const rawMimeSource = ext || item.metadata.filename
+  const isMarkdownPaste =
+    !item.metadata.encryptionScheme &&
+    !item.metadata.sharePasswd &&
+    (item.metadata.highlightLanguage === "markdown" ||
+      (rawMimeSource !== undefined && mime.getType(rawMimeSource) === "text/markdown"))
+  if (
+    isMarkdownPaste &&
+    role === undefined &&
+    isBrowserNavigation(request) &&
+    !url.searchParams.has("a") &&
+    !url.searchParams.has("mime") &&
+    !ext &&
+    !filename
+  ) {
+    const articleUrl = new URL(url)
+    articleUrl.pathname = "/a" + articleUrl.pathname
+    return Response.redirect(articleUrl.toString())
+  }
+
   const disallowedMimes = env.DISALLOWED_MIME_FOR_PASTE as readonly string[]
   const sanitize = (m: string) => (disallowedMimes.includes(m) ? "text/plain;charset=UTF-8" : m)
 

@@ -264,6 +264,44 @@ test("share password prompt page on raw URL for browsers", async () => {
   expect(await ok.text()).toStrictEqual(html)
 })
 
+test("markdown raw URL redirects browsers to the rendered article", async () => {
+  const ctx = createExecutionContext()
+  const md = "# hello\n\nworld"
+
+  const uploadResponseJson = await upload(ctx, { c: { content: new Blob([md]), filename: "report.md" } })
+  const url = uploadResponseJson.url
+  const name = url.split("/").pop()!
+
+  // API clients get the raw markdown source
+  const raw = await workerFetch(ctx, url)
+  expect(raw.status).toStrictEqual(200)
+  expect(raw.headers.get("Content-Type")?.startsWith("text/markdown")).toStrictEqual(true)
+  expect(await raw.text()).toStrictEqual(md)
+
+  // browsers are redirected to the rendered article
+  const redirected = await workerFetch(
+    ctx,
+    new Request(url, { headers: { "Sec-Fetch-Mode": "navigate", Accept: "text/html" } }),
+  )
+  expect(redirected.status).toStrictEqual(302)
+  expect(redirected.headers.get("Location")).toStrictEqual(`${BASE_URL}/a/${name}`)
+
+  // explicit raw modifiers still serve raw content to browsers
+  const attachment = await workerFetch(
+    ctx,
+    new Request(url + "?a", { headers: { "Sec-Fetch-Mode": "navigate", Accept: "text/html" } }),
+  )
+  expect(attachment.status).toStrictEqual(200)
+  expect(attachment.headers.get("Content-Type")?.startsWith("text/markdown")).toStrictEqual(true)
+
+  // following the redirect renders the article
+  const article = await workerFetch(ctx, addRole(url, "a"))
+  expect(article.status).toStrictEqual(200)
+  const articleHtml = await article.text()
+  expect(articleHtml.includes("<h1")).toStrictEqual(true)
+  expect(articleHtml.includes("hello")).toStrictEqual(true)
+})
+
 test("highlight with option lang", async () => {
   const blob1 = genRandomBlob(1024)
   const ctx = createExecutionContext()

@@ -16,6 +16,8 @@ If the paste is encrypted, an `X-PB-Encryption-Scheme` header will be set to the
 
 If the paste is uploaded with a `lang` parameter, an `X-PB-Highlight-Language` header will be set to the highlight language.
 
+If the paste is markdown (uploaded with a markdown extension or the `lang=markdown` field), top-level browser navigations to the raw URL are redirected to the rendered `/a/<name>` view — use `?a`, `?mime=`, an explicit extension/filename in the path, or a non-browser client to fetch the raw source instead.
+
 If the paste was uploaded with a `share-passwd`, the content is password-protected: requests must carry the correct password in the `X-PB-Share-Passwd` header, otherwise the worker returns `403`. As an exception, browser navigations without the key (top-level requests with `Sec-Fetch-Mode: navigate` or an `Accept` header preferring `text/html`) receive a small HTML key-prompt page instead — after the visitor enters the key, the page re-fetches the URL with the header and renders the content the same way the display page would (markdown via the `/a/` renderer, HTML in a sandboxed frame, images and media inline, other text as plain text, binary as a download). The display page `/d/<name>` and the markdown render `/a/<name>` provide the same prompt flow.
 
 - `?a=`: optional. Set `Content-Disposition` to `attachment` if present.

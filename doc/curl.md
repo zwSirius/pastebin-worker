@@ -135,6 +135,10 @@ $ curl {{BASE_URL}}/abcd
 hello, world
 ```
 
+Note: browser visits to the raw URL of a markdown paste are redirected to the
+rendered `/a/<name>` page — append `?a` or `?mime=`, use an explicit
+extension/filename in the path, or use a non-browser client to get the raw
+source instead.
 ### Save the response to a file
 
 ```shell
