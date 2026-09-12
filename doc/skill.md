@@ -1,6 +1,6 @@
 ---
 name: shz-al
-description: Upload, fetch, update, or delete text/binary content via {{BASE_URL}}, a curl-friendly pastebin. Use when you need a quick public URL for sharing long output, hosting a small file, shortening a URL, or rendering markdown as HTML.
+description: Upload, fetch, update, or delete text/binary content via {{BASE_URL}}, a curl-friendly pastebin. Use when you need a quick public URL for sharing long output, hosting a small file, shortening a URL, rendering markdown as HTML, or sharing content behind a password.
 ---
 
 # shz.al
@@ -36,10 +36,11 @@ is the only way to authenticate as the owner.
 - `-Fe=<expire>` — expiration: integer/float with unit `s`/`m`/`h`/`d`
   (default seconds). E.g. `-Fe=30m`, `-Fe=14d`.
 - `-Fs=<password>` — set a specific management password.
-- `-Fshare-passwd=<key>` — protect the paste with a 4-8 character share key:
-  fetching it then requires the `X-PB-Share-Passwd: <key>` header (browsers
-  get a key prompt instead, and markdown/HTML/images render after unlock).
+- `-Fshare-passwd=<key>` — password-protect the paste (see
+  [Password-protected sharing](#password-protected-sharing)).
 - `-Flang=<lang>` — mark for syntax highlighting on the display page.
+  `lang=markdown` also makes browsers opening the raw URL see the rendered
+  article instead of the source.
 - `-Fp=1` — private mode: 24-char unguessable random name.
 
 ## Fetch
@@ -52,11 +53,49 @@ curl -I {{BASE_URL}}/<name>                 # HEAD only
 ```
 
 Password-protected pastes answer `403` unless the request carries
-`X-PB-Share-Passwd: <key>`. Metadata (`/m/`) reports `passwordProtected`.
+`X-PB-Share-Passwd: <key>` (see
+[Password-protected sharing](#password-protected-sharing)). Metadata (`/m/`)
+reports `"passwordProtected": true`.
 
 Append `?a` for `Content-Disposition: attachment`, `?mime=<mime>` to override
 the response Content-Type, or append `.<ext>` to the path to set Content-Type
 by extension.
+
+## Password-protected sharing
+
+Upload with `-Fshare-passwd=<key>` (4-8 characters). The key is stored
+server-side; the content itself is stored as-is — the key only gates access.
+
+- Every content fetch (raw URL, `/u/`) needs `X-PB-Share-Passwd: <key>`;
+  without it the worker answers `403`.
+- Browsers without the key get a small key-prompt page instead; after the
+  visitor enters the key, content renders exactly like an unprotected paste
+  (markdown article, rendered HTML, inline images/media, plain text, or a
+  download for binaries).
+- Management (`PUT`/`DELETE` with the manage URL) is unchanged. On `PUT`,
+  omitting `share-passwd` keeps the existing key.
+
+## Share links
+
+What each link shows to a browser; API clients always get the raw bytes from
+the raw URL:
+
+- `/<name>` (raw URL) — the default link to share for every paste type.
+  Browsers get content rendered by type: markdown is redirected to `/a/`,
+  HTML renders in a sandboxed frame, images and media display or play
+  inline, other text shows as plain text, binaries download. For protected
+  pastes the browser first gets the key prompt. `?a`, `?mime=` or an
+  explicit extension force raw delivery instead.
+- `/d/<name>` — display page: syntax-highlighted source with copy/download
+  for text (HTML pastes get a source/rendered toggle), inline media, a
+  download button for binaries. Append `?lang=<lang>` to override the
+  highlighting language.
+- `/a/<name>` — render a markdown paste as a styled HTML article
+  (GitHub-flavored Markdown + syntax highlighting + MathJax). For markdown
+  pastes this is equivalent to the raw URL.
+- `/u/<name>` — redirect to the URL stored in the paste (URL shortener).
+  Not useful for protected pastes from a browser (the key cannot travel on
+  a redirect) — share the raw URL or `/d/` instead.
 
 ## Update / delete
 
@@ -66,13 +105,6 @@ curl -X DELETE                   <manageUrl>
 ```
 
 `PUT` accepts the same fields as upload; `e` recalculates expiration from now.
-
-## Other URL forms
-
-- `/d/<name>` — display code with syntax highlighting. Append `?lang=<lang>` to override
-  the highlighting language.
-- `/a/<name>` — render a markdown paste as HTML (GitHub-flavored Markdown + MathJax).
-- `/u/<name>` — redirect to the URL stored in the paste (URL shortener).
 
 ## Limitations
 
