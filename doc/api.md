@@ -163,7 +163,7 @@ Upload your paste. It accept parameters in form-data:
 
 - `p`: optional. The flag of **private mode**. If specified to any value, the name of the paste is as long as 24 characters. No effect if `n` is used.
 
-- `share-passwd`: optional. A password of 4-8 characters that protects the paste: fetching the content (raw, `/u/` or `/a/`) requires the correct password in the `X-PB-Share-Passwd` header, and the display page `/d/<name>` asks for it before showing anything. The content itself is stored as-is; only access is restricted. On `PUT`, omitting the field keeps the existing share password.
+- `share-passwd`: optional. A password of 4-8 characters that protects the paste: fetching the content (raw, `/u/` or `/a/`) requires the correct password in the `X-PB-Share-Passwd` header, and the display page `/d/<name>` asks for it before showing anything. The content itself is stored as-is; only access is restricted. On `PUT`, omitting the field keeps the existing share password. It can be combined with `encryption-scheme`: the viewer first passes the share key, then decrypts the returned ciphertext in the browser with the key from the URL fragment.
 
 - `encryption-scheme`: optional. The encryption scheme used in the uploaded paste. It will be returned as `X-PB-Encryption-Scheme` header on fetching paste. Note that this is not the encryption scheme that the backend will perform.
 

@@ -18,4 +18,12 @@
 - CLI：`pb post/update/get` 新增 `-P/--share-passwd`（get 收到 403 时提示），bash/zsh/fish 补全同步。
 - API：新增 `share-passwd` 表单字段与 `X-PB-Share-Passwd` 请求头；`/m/` 元数据新增 `passwordProtected` 字段。详见 `doc/api.md`、`doc/curl.md`、`doc/skill.md`。
 - 兼容性：原"客户端加密"（随机密钥 + `#` 片段链接）在 CLI（`-E`）与 API（`encryption-scheme` 字段）中继续可用，展示页保留其解密路径；受保护粘贴的管理密码更新流程不变（`PUT` 不带 `share-passwd` 时保留原密钥）。
-- 杂项：prettier 配置增加 `endOfLine: "auto"`，Windows CRLF 工作区不再全量报格式差异；测试覆盖密钥门禁、密钥页与解锁渲染流程（共 162 项）。
+- 杂项：prettier 配置增加 `endOfLine: "auto"`，Windows CRLF 工作区不再全量报格式差异；测试覆盖密钥门禁、密钥页与解锁渲染流程（共 164 项）。
+
+### 恢复网页端"客户端加密"上传入口
+
+- 设置面板重新提供"客户端加密"开关，与"加密分享"并存且可同时开启：内容在浏览器本地用 AES-GCM 加密后再上传（`encryption-scheme` 表单字段），服务器只保存密文；解密密钥仅存在于解密链接的 `#` 片段中，不会发送到服务器。
+- 上传结果面板：开启客户端加密后"展示链接"即为解密链接（`/d/<名称>#<密钥>`）；Markdown 链接、"网页链接"与 URL 跳转链接对密文自动隐藏；"原始链接"的说明按未加密 / 加密分享 / 客户端加密 / 双重保护分别给出。
+- 大文件同样支持：先在浏览器本地加密整块内容，再按 5 MiB 分片走 MPU 上传，complete 请求携带 `encryption-scheme`。
+- 组合语义：同时开启时，接收者打开解密链接需先输入分享密钥，浏览器再用 `#` 片段中的密钥在本地解密。
+- 测试：新增端到端用例（开关 → 上传 → 校验 `encryption-scheme` 字段与密文 → 用链接中的密钥解密还原）。

@@ -73,7 +73,10 @@ server-side; the content itself is stored as-is — the key only gates access.
   (markdown article, rendered HTML, inline images/media, plain text, or a
   download for binaries).
 - Management (`PUT`/`DELETE` with the manage URL) is unchanged. On `PUT`,
-  omitting `share-passwd` keeps the existing key.
+  omitting `share-passwd` keeps the existing key. A paste can also be
+  client-side encrypted (`encryption-scheme`): after the share key is entered,
+  the browser decrypts the fetched ciphertext with the key from the URL
+  fragment.
 
 ## Share links
 
@@ -96,6 +99,12 @@ the raw URL:
 - `/u/<name>` — redirect to the URL stored in the paste (URL shortener).
   Not useful for protected pastes from a browser (the key cannot travel on
   a redirect) — share the raw URL or `/d/` instead.
+- `/d/<name>#<key>` — client-side encrypted pastes (web 客户端加密 toggle,
+  `pb -E`, or the `encryption-scheme` API field). The raw URL returns
+  ciphertext; decryption happens in the browser with the key from the URL
+  fragment, which never reaches the server — share this link with the key
+  intact instead of the raw URL. Combinable with a share password: the
+  visitor enters the share key first, then the browser decrypts.
 
 ## Update / delete
 

@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState, useTransition } from "react"
 
-import { Link } from "../components/ui/index.js"
-
 import { DarkModeToggle, useDarkModeSelection } from "../components/DarkModeToggle.js"
 import { useErrorModal } from "../components/ErrorModal.js"
 import type { PasteSetting } from "../components/PasteSettingPanel.js"
@@ -14,7 +12,13 @@ import type { PasteResponse } from "../../shared/interfaces.js"
 import { parsePath, parseFilenameFromContentDisposition } from "../../shared/parsers.js"
 import { PASSWD_SEP, MAX_URL_REDIRECT_LEN, MAX_AUTO_FETCH_BYTES } from "../../shared/constants.js"
 
-import { verifyExpiration, verifyManageUrl, getMaxExpirationReadable, isMarkdownFilename, isHtmlFilename } from "../utils/utils.js"
+import {
+  verifyExpiration,
+  verifyManageUrl,
+  getMaxExpirationReadable,
+  isMarkdownFilename,
+  isHtmlFilename,
+} from "../utils/utils.js"
 import { verifyName, verifyPassword, verifySharePassword, isLegalUrl } from "../../shared/verify.js"
 import { useNameAvailability } from "../utils/useNameAvailability.js"
 import type { UploadProgress } from "../utils/uploader.js"
@@ -39,10 +43,12 @@ export function PasteBin({ config }: { config: Env }) {
     uploadKind: "short",
     doProtect: false,
     sharePasswd: "",
+    doEncrypt: false,
   })
 
   const [pasteResponse, setPasteResponse] = useState<PasteResponse | undefined>(undefined)
   const [uploadedIsProtected, setUploadedIsProtected] = useState<boolean>(false)
+  const [uploadedEncryptionKey, setUploadedEncryptionKey] = useState<string | undefined>(undefined)
 
   const [isUploadPending, startUpload] = useTransition()
   const [isDeletePending, startDelete] = useTransition()
@@ -128,9 +134,17 @@ export function PasteBin({ config }: { config: Env }) {
     // Clear any previous result so a failed/cancelled retry doesn't show stale URLs.
     setPasteResponse(undefined)
     setUploadedIsProtected(false)
+    setUploadedEncryptionKey(undefined)
     startUpload(async () => {
       try {
-        const uploaded = await uploadPaste(pasteSetting, editorState, config, setLoadingProgress, controller.signal)
+        const uploaded = await uploadPaste(
+          pasteSetting,
+          editorState,
+          config,
+          setUploadedEncryptionKey,
+          setLoadingProgress,
+          controller.signal,
+        )
         setPasteResponse(uploaded)
         setUploadedIsProtected(pasteSetting.doProtect)
         setPasteSetting({ ...pasteSetting, uploadKind: "manage", manageUrl: uploaded.manageUrl })
@@ -207,12 +221,14 @@ export function PasteBin({ config }: { config: Env }) {
         <h1 className="text-3xl">{config.INDEX_PAGE_TITLE}</h1>
         <DarkModeToggle modeSelection={modeSelection} setModeSelection={setModeSelection} />
       </div>
-      <p className="my-2">一个运行在 Cloudflare Workers 上的粘贴板服务。</p>
       <p className="my-2">
-        <b>用法</b>：粘贴文本或拖入文件，然后分享返回的链接。设置 4-8 个字符分享密钥后，接收者需要使用正确的密钥才能打开文件或下载。
+        <b>用法</b>：粘贴文本或拖入文件，然后分享返回的链接。设置 4-8
+        个字符分享密钥后，接收者需要使用正确的密钥才能打开文件或下载。勾选「客户端加密」后，内容会先在你的浏览器中加密再上传，服务器只保存密文，分享链接末尾会附带用于解密的密钥（#
+        片段）。
       </p>
       <p className="my-2">
-        <b>注意</b>：仅用于临时分享 <b>（最长 {getMaxExpirationReadable(config)}）</b>。文件可能随时被删除，恕不另行通知！
+        <b>注意</b>：仅用于临时分享 <b>（最长 {getMaxExpirationReadable(config)}）</b>
+        。文件可能随时被删除，恕不另行通知！
       </p>
     </div>
   )
@@ -240,20 +256,6 @@ export function PasteBin({ config }: { config: Env }) {
         </button>
       )}
     </div>
-  )
-
-  const footer = (
-    <footer className="px-3 my-4 text-center">
-      <p>
-        <Link href={`${config.DEPLOY_URL}/doc/tos`} className={`d-inline-block ${tst}`}>
-          服务条款
-        </Link>
-        {" / "}
-        <Link href={config.REPO} className={`d-inline-block ${tst}`}>
-          项目仓库
-        </Link>
-      </p>
-    </footer>
   )
 
   return (
@@ -284,6 +286,7 @@ export function PasteBin({ config }: { config: Env }) {
               onCancel={onCancelUpload}
               pasteResponse={pasteResponse}
               isProtected={uploadedIsProtected}
+              encryptionKey={uploadedEncryptionKey}
               highlightLang={
                 editorState.editKind === "edit"
                   ? editorState.editHighlightLang
@@ -304,7 +307,6 @@ export function PasteBin({ config }: { config: Env }) {
           )}
         </div>
       </div>
-      {footer}
       <ErrorModal />
     </main>
   )

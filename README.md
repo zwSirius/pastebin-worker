@@ -9,7 +9,7 @@ This is a pastebin running on Cloudflare workers. Try it on [shz.al](https://shz
 1. Share your paste with as short as 4 characters, or even customized URL.
 1. **Syntax highlighting** powered by highlight.js.
 1. Password-protected sharing: gate a paste behind a short share password.
-1. Client-side encryption (via the CLI or API).
+1. Client-side encryption (in the browser, via the CLI or API).
 1. Share **markdown** file with rendered HTML.
 1. URL shortener.
 1. Smart and tweakable handling for `Content-Type` and `Content-Disposition`.
@@ -18,7 +18,7 @@ This is a pastebin running on Cloudflare workers. Try it on [shz.al](https://shz
 
 1. You can post, update, delete your paste directly on the website (such as [shz.al](https://shz.al)).
 
-2. **Sharing links**: the raw URL (`https://…/<name>`) is the link to share for every paste type — browsers render it by content (markdown becomes an article, HTML renders as a page, images and media display inline, binaries download), while API clients always get the raw bytes. Toggling 加密分享 on the website (or the `share-passwd` API field / `pb -P`) gates it behind a 4-8 character key that visitors enter once before viewing. See [doc/curl.md](doc/curl.md) for the full semantics of each link (`/d/`, `/a/`, `/u/`).
+2. **Sharing links**: the raw URL (`https://…/<name>`) is the link to share for every paste type — browsers render it by content (markdown becomes an article, HTML renders as a page, images and media display inline, binaries download), while API clients always get the raw bytes. Toggling 加密分享 on the website (or the `share-passwd` API field / `pb -P`) gates it behind a 4-8 character key that visitors enter once before viewing. Toggling 客户端加密 (or `pb -E` / the `encryption-scheme` API field) instead encrypts the content in your browser before upload — the server only stores ciphertext, and the shareable decryption link (`/d/<name>#<key>`) carries the key in its `#` fragment, which never reaches the server; the two can be combined. See [doc/curl.md](doc/curl.md) for the full semantics of each link (`/d/`, `/a/`, `/u/`).
 
 3. It also provides a convenient HTTP API to use. See [API reference](doc/api.md) for details. You can easily call API via command line (using `curl` or similar tools). Note that a single request body is capped at 100 MB by Cloudflare (the platform returns HTTP `413` for larger bodies before the worker runs) — for larger files, use the website or the `pb` CLI below, which transparently chunk the upload.
 

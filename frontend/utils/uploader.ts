@@ -1,12 +1,23 @@
 import type { PasteSetting } from "../components/PasteSettingPanel.js"
 import type { PasteEditState } from "../components/PasteInputPanel.js"
 import { ErrorWithTitle } from "./utils.js"
+import type { EncryptionScheme } from "./encryption.js"
+import { encodeKey, encrypt, genKey } from "./encryption.js"
 import type { PasteResponse } from "../../shared/interfaces.js"
 import type { UploadOptions } from "../../shared/uploadPaste.js"
 import { UploadError, uploadMPU, uploadNormal } from "../../shared/uploadPaste.js"
 
 const mpuChunkSize = 5 * 1024 * 1024
 const mpuThreshold = 5 * 1024 * 1024
+
+const encryptionScheme: EncryptionScheme = "AES-GCM"
+
+async function genAndEncrypt(scheme: EncryptionScheme, content: string | Uint8Array) {
+  const key = await genKey(scheme)
+  const plaintext = typeof content === "string" ? new TextEncoder().encode(content) : content
+  const ciphertext = await encrypt(scheme, key, plaintext)
+  return { key: await encodeKey(key), ciphertext }
+}
 
 export interface UploadProgress {
   doneBytes: number
@@ -17,25 +28,38 @@ export async function uploadPaste(
   pasteSetting: PasteSetting,
   editorState: PasteEditState,
   config: Env,
+  onEncryptionKeyChange?: (key: string | undefined) => void, // we only generate key on upload
   onProgress?: (progress: UploadProgress | undefined) => void,
   signal?: AbortSignal,
 ): Promise<PasteResponse> {
-  function constructContent(): File {
+  async function constructContent(): Promise<File> {
     if (editorState.editKind === "file") {
       if (editorState.file === null) {
         throw new ErrorWithTitle("准备上传失败", "未选择文件")
       }
+      if (pasteSetting.doEncrypt) {
+        const { key, ciphertext } = await genAndEncrypt(encryptionScheme, await editorState.file.bytes())
+        onEncryptionKeyChange?.(key)
+        return new File([ciphertext as BlobPart], editorState.file.name)
+      }
+      onEncryptionKeyChange?.(undefined)
       return editorState.file
     } else {
       if (editorState.editContent.length === 0) {
         throw new ErrorWithTitle("准备上传失败", "内容为空")
       }
+      if (pasteSetting.doEncrypt) {
+        const { key, ciphertext } = await genAndEncrypt(encryptionScheme, editorState.editContent)
+        onEncryptionKeyChange?.(key)
+        return new File([ciphertext as BlobPart], editorState.editFilename || "")
+      }
+      onEncryptionKeyChange?.(undefined)
       return new File([editorState.editContent], editorState.editFilename || "")
     }
   }
 
   const options: UploadOptions = {
-    content: constructContent(),
+    content: await constructContent(),
     isUpdate: pasteSetting.uploadKind === "manage",
     isPrivate: pasteSetting.uploadKind === "long",
     password: pasteSetting.password.length ? pasteSetting.password : undefined,
@@ -43,6 +67,7 @@ export async function uploadPaste(
     name: pasteSetting.uploadKind === "custom" ? pasteSetting.name : undefined,
     highlightLanguage: editorState.editKind === "edit" ? editorState.editHighlightLang : undefined,
     sharePasswd: pasteSetting.doProtect ? pasteSetting.sharePasswd : undefined,
+    encryptionScheme: pasteSetting.doEncrypt ? encryptionScheme : undefined,
     manageUrl: pasteSetting.manageUrl,
   }
 

@@ -27,6 +27,9 @@ interface UploadedPanelProps extends CardProps {
   onCancel?: () => void
   pasteResponse?: PasteResponse
   isProtected?: boolean
+  // present when the paste was uploaded with client-side encryption: the
+  // decryption key (also embedded in the shareable URL fragment)
+  encryptionKey?: string
   highlightLang?: string
   isUrlPaste?: boolean
 }
@@ -35,6 +38,11 @@ function withPathPrefix(url: string, prefix: string): string {
   const u = new URL(url)
   u.pathname = prefix + u.pathname
   return u.toString()
+}
+
+function makeDecryptionUrl(url: string, key?: string): string {
+  const base = withPathPrefix(url, "/d")
+  return key ? `${base}#${key}` : base
 }
 
 const RAW_URL_FLAGS: { syntax: string; desc: string }[] = [
@@ -91,6 +99,7 @@ export function UploadedPanel({
   pasteResponse,
   className,
   isProtected,
+  encryptionKey,
   highlightLang,
   isUrlPaste,
   ...rest
@@ -102,12 +111,12 @@ export function UploadedPanel({
   }
   const [moreOpen, setMoreOpen] = useState<boolean>(false)
 
-  const isEncrypted = Boolean(isProtected)
+  const isEncrypted = Boolean(isProtected || encryptionKey)
   const isMarkdown = highlightLang === "markdown"
   const isHtml = highlightLang === "html"
-  // 内容是合法 URL 且未开启加密分享时，主分享链接用 /u 跳转链接（加密分享的内容需要密码验证，不能直接重定向）
+  // 内容是合法 URL 且未开启任何密钥保护（加密分享或客户端加密）时，主分享链接用 /u 跳转链接（受保护的内容需要密码验证或本地解密，不能直接重定向）
   const isUrlRedirect = !isEncrypted && Boolean(isUrlPaste)
-  const displayUrl = pasteResponse ? withPathPrefix(pasteResponse.url, "/d") : ""
+  const decryptionUrl = pasteResponse ? makeDecryptionUrl(pasteResponse.url, encryptionKey) : ""
 
   const urlInput = (label: string, value: string, labelExtra?: React.ReactNode) => (
     <Input
@@ -171,7 +180,15 @@ export function UploadedPanel({
                       desc={
                         <>
                           适合在浏览器中查看，带语法高亮。
-                          {isEncrypted && (
+                          {encryptionKey && (
+                            <>
+                              {" "}
+                              该粘贴使用客户端加密：解密密钥位于 URL 中 #
+                              之后，永远不会发送到服务器——它留在浏览器中用于客户端解密。
+                              {isProtected && <>打开后需先输入分享密钥，浏览器再用链接中的密钥解密。</>}
+                            </>
+                          )}
+                          {!encryptionKey && isProtected && (
                             <> 该粘贴已开启加密分享：接收者打开此链接后需输入密钥才能查看内容。</>
                           )}
                         </>
@@ -181,11 +198,11 @@ export function UploadedPanel({
                   }
                   color={isEncrypted ? "success" : "default"}
                   className="mb-2"
-                  value={displayUrl}
+                  value={decryptionUrl}
                   endContent={
                     <CopyWidget
                       className={isEncrypted ? `${copyWidgetClassNames} hover:bg-success-100` : copyWidgetClassNames}
-                      getCopyContent={() => displayUrl}
+                      getCopyContent={() => decryptionUrl}
                     />
                   }
                 />
@@ -210,8 +227,9 @@ export function UploadedPanel({
                   }
                 />
               )}
-              {isMarkdown && markdownUrlField(pasteResponse, isEncrypted)}
+              {isMarkdown && !encryptionKey && markdownUrlField(pasteResponse, isProtected)}
               {isHtml &&
+                !encryptionKey &&
                 urlInput(
                   "网页链接",
                   pasteResponse.url,
@@ -224,9 +242,13 @@ export function UploadedPanel({
                 pasteResponse.url,
                 <UrlTooltip
                   desc={
-                    isEncrypted
-                      ? "受密钥保护：在浏览器中打开此链接会先要求输入密钥，验证后直接展示或渲染内容（HTML 会渲染为页面）；API 客户端请携带 X-PB-Share-Passwd 头。"
-                      : "直接返回粘贴的原始内容，使用推断出的 Content-Type。"
+                    encryptionKey
+                      ? isProtected
+                        ? "受分享密钥与客户端加密双重保护：浏览器打开此链接需先输入分享密钥，内容以密文返回，由浏览器用链接 # 片段中的密钥解密；API 客户端请携带 X-PB-Share-Passwd 头。"
+                        : "直接返回粘贴的原始内容——由于该粘贴使用了客户端加密，内容为加密状态。请自行用密钥解密。"
+                      : isEncrypted
+                        ? "受密钥保护：在浏览器中打开此链接会先要求输入密钥，验证后直接展示或渲染内容（HTML 会渲染为页面）；API 客户端请携带 X-PB-Share-Passwd 头。"
+                        : "直接返回粘贴的原始内容，使用推断出的 Content-Type。"
                   }
                   flags={RAW_URL_FLAGS}
                 />,
