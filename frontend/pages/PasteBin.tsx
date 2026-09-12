@@ -14,8 +14,8 @@ import type { PasteResponse } from "../../shared/interfaces.js"
 import { parsePath, parseFilenameFromContentDisposition } from "../../shared/parsers.js"
 import { PASSWD_SEP, MAX_URL_REDIRECT_LEN, MAX_AUTO_FETCH_BYTES } from "../../shared/constants.js"
 
-import { verifyExpiration, verifyManageUrl, getMaxExpirationReadable } from "../utils/utils.js"
-import { verifyName, verifyPassword, isLegalUrl } from "../../shared/verify.js"
+import { verifyExpiration, verifyManageUrl, getMaxExpirationReadable, isMarkdownFilename, isHtmlFilename } from "../utils/utils.js"
+import { verifyName, verifyPassword, verifySharePassword, isLegalUrl } from "../../shared/verify.js"
 import { useNameAvailability } from "../utils/useNameAvailability.js"
 import type { UploadProgress } from "../utils/uploader.js"
 import { uploadPaste } from "../utils/uploader.js"
@@ -37,11 +37,12 @@ export function PasteBin({ config }: { config: Env }) {
     name: "",
     password: "",
     uploadKind: "short",
-    doEncrypt: false,
+    doProtect: false,
+    sharePasswd: "",
   })
 
   const [pasteResponse, setPasteResponse] = useState<PasteResponse | undefined>(undefined)
-  const [uploadedEncryptionKey, setUploadedEncryptionKey] = useState<string | undefined>(undefined)
+  const [uploadedIsProtected, setUploadedIsProtected] = useState<boolean>(false)
 
   const [isUploadPending, startUpload] = useTransition()
   const [isDeletePending, startDelete] = useTransition()
@@ -126,18 +127,12 @@ export function PasteBin({ config }: { config: Env }) {
     uploadAbortRef.current = controller
     // Clear any previous result so a failed/cancelled retry doesn't show stale URLs.
     setPasteResponse(undefined)
-    setUploadedEncryptionKey(undefined)
+    setUploadedIsProtected(false)
     startUpload(async () => {
       try {
-        const uploaded = await uploadPaste(
-          pasteSetting,
-          editorState,
-          setUploadedEncryptionKey,
-          config,
-          setLoadingProgress,
-          controller.signal,
-        )
+        const uploaded = await uploadPaste(pasteSetting, editorState, config, setLoadingProgress, controller.signal)
         setPasteResponse(uploaded)
+        setUploadedIsProtected(pasteSetting.doProtect)
         setPasteSetting({ ...pasteSetting, uploadKind: "manage", manageUrl: uploaded.manageUrl })
       } catch (e) {
         if ((e as Error).name !== "AbortError") {
@@ -181,6 +176,10 @@ export function PasteBin({ config }: { config: Env }) {
       return false
     }
 
+    if (pasteSetting.doProtect && !verifySharePassword(pasteSetting.sharePasswd)[0]) {
+      return false
+    }
+
     if (verifyExpiration(pasteSetting.expiration, config)[0]) {
       if (pasteSetting.uploadKind === "short" || pasteSetting.uploadKind === "long") {
         return true
@@ -210,19 +209,7 @@ export function PasteBin({ config }: { config: Env }) {
       </div>
       <p className="my-2">一个运行在 Cloudflare Workers 上的粘贴板服务。</p>
       <p className="my-2">
-        <b>用法</b>：粘贴文本或拖入文件，然后分享返回的链接。你也可以使用{" "}
-        <Link className={tst} href={`${config.DEPLOY_URL}/doc/curl`}>
-          curl
-        </Link>
-        {"、"}
-        <Link className={tst} href={`${config.DEPLOY_URL}/doc/api`}>
-          HTTP API
-        </Link>
-        {"，或作为 "}
-        <Link className={tst} href={`${config.DEPLOY_URL}/doc/skill.md`}>
-          AI 智能体技能
-        </Link>
-        {" 使用。"}
+        <b>用法</b>：粘贴文本或拖入文件，然后分享返回的链接。设置 4-8 个字符分享密钥后，接收者需要使用正确的密钥才能打开文件或下载。
       </p>
       <p className="my-2">
         <b>注意</b>：仅用于临时分享 <b>（最长 {getMaxExpirationReadable(config)}）</b>。文件可能随时被删除，恕不另行通知！
@@ -296,8 +283,16 @@ export function PasteBin({ config }: { config: Env }) {
               loadingProgress={loadingProgress}
               onCancel={onCancelUpload}
               pasteResponse={pasteResponse}
-              encryptionKey={uploadedEncryptionKey}
-              highlightLang={editorState.editKind === "edit" ? editorState.editHighlightLang : undefined}
+              isProtected={uploadedIsProtected}
+              highlightLang={
+                editorState.editKind === "edit"
+                  ? editorState.editHighlightLang
+                  : editorState.file && isMarkdownFilename(editorState.file.name)
+                    ? "markdown"
+                    : editorState.file && isHtmlFilename(editorState.file.name)
+                      ? "html"
+                      : undefined
+              }
               isUrlPaste={
                 editorState.editKind === "edit" &&
                 editorState.editContent.length > 0 &&

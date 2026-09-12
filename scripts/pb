@@ -606,6 +606,8 @@ def cmd_post(args: argparse.Namespace, domain: str) -> None:
             mpu_fields["e"] = args.expire
         if args.passwd:
             mpu_fields["s"] = args.passwd
+        if args.share_passwd:
+            mpu_fields["share-passwd"] = args.share_passwd
         if args.encrypt:
             mpu_fields["encryption-scheme"] = ENCRYPTION_SCHEME
         upload_mpu(
@@ -633,6 +635,8 @@ def cmd_post(args: argparse.Namespace, domain: str) -> None:
         fields["s"] = args.passwd
     if args.private:
         fields["p"] = "true"
+    if args.share_passwd:
+        fields["share-passwd"] = args.share_passwd
     if args.encrypt:
         fields["encryption-scheme"] = ENCRYPTION_SCHEME
 
@@ -671,6 +675,8 @@ def cmd_update(args: argparse.Namespace, domain: str) -> None:
             mpu_fields["e"] = args.expire
         if args.passwd:
             mpu_fields["s"] = args.passwd
+        if args.share_passwd:
+            mpu_fields["share-passwd"] = args.share_passwd
         if args.encrypt:
             mpu_fields["encryption-scheme"] = ENCRYPTION_SCHEME
         upload_mpu(
@@ -694,6 +700,8 @@ def cmd_update(args: argparse.Namespace, domain: str) -> None:
         fields["e"] = args.expire
     if args.passwd:
         fields["s"] = args.passwd
+    if args.share_passwd:
+        fields["share-passwd"] = args.share_passwd
     if args.encrypt:
         fields["encryption-scheme"] = ENCRYPTION_SCHEME
 
@@ -724,16 +732,22 @@ def cmd_get(args: argparse.Namespace, domain: str) -> None:
         die("cannot combine --save with -o/--output")
     base = f"{domain}/{prefix}/{args.name}" if prefix else f"{domain}/{args.name}"
 
+    share_headers: dict = {}
+    if getattr(args, "share_passwd", None):
+        share_headers["X-PB-Share-Passwd"] = args.share_passwd
+
     log_request("GET", base, {}, {})
     if args.dry:
         return
 
     try:
-        resp = requests.get(base, allow_redirects=False)
+        resp = requests.get(base, headers=share_headers or None, allow_redirects=False)
     except requests.RequestException as e:
         die(f"request failed: {e}")
         return
 
+    if resp.status_code == 403 and not share_headers:
+        die(f"403: {resp.text.strip()} (hint: the paste may be password-protected; pass -P/--share-passwd)")
     if resp.status_code not in (200, 302):
         die(f"{resp.status_code}: {resp.text}")
 
@@ -879,6 +893,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_post.add_argument("-n", "--name", help="custom name (prefix with ~)")
     p_post.add_argument("-s", "--passwd", help="password")
     p_post.add_argument(
+        "-P",
+        "--share-passwd",
+        help="share password (4-8 chars); viewers must enter it to fetch the paste",
+    )
+    p_post.add_argument(
         "-p", "--private", action="store_true", help="use longer random name"
     )
     p_post.add_argument(
@@ -915,6 +934,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_update.add_argument("-c", "--content", help="inline content of the paste")
     p_update.add_argument("-e", "--expire", help="expiration time")
     p_update.add_argument("-s", "--passwd", help="password (overrides history lookup)")
+    p_update.add_argument(
+        "-P",
+        "--share-passwd",
+        help="share password (4-8 chars); viewers must enter it to fetch the paste",
+    )
     p_update.add_argument("-f", "--file", help="read paste from file")
     p_update.add_argument(
         "-x", "--clip", action="store_true", help="copy URL to clipboard"
@@ -951,6 +975,11 @@ def build_parser() -> argparse.ArgumentParser:
         "-K",
         "--key",
         help="decryption key (overrides history lookup); only used if paste is encrypted",
+    )
+    p_get.add_argument(
+        "-P",
+        "--share-passwd",
+        help="share password for password-protected pastes",
     )
     p_get.add_argument(
         "--no-decrypt",

@@ -154,6 +154,116 @@ test("encryption with option encryption-scheme", async () => {
   expect(fetchMeta.encryptionScheme).toStrictEqual("AES-GCM")
 })
 
+test("share password protection with option share-passwd", async () => {
+  const blob1 = genRandomBlob(1024)
+  const ctx = createExecutionContext()
+
+  // invalid share passwords are rejected
+  await uploadExpectStatus(ctx, { c: blob1, "share-passwd": "123" }, 400)
+  await uploadExpectStatus(ctx, { c: blob1, "share-passwd": "1".repeat(9) }, 400)
+
+  const uploadResponseJson = await upload(ctx, { c: blob1, "share-passwd": "1234" })
+  const url = uploadResponseJson.url
+
+  // raw content requires the share password
+  const noPasswd = await workerFetch(ctx, url)
+  expect(noPasswd.status).toStrictEqual(403)
+  const wrongPasswd = await workerFetch(ctx, new Request(url, { headers: { "X-PB-Share-Passwd": "9999" } }))
+  expect(wrongPasswd.status).toStrictEqual(403)
+
+  const rightPasswd = await workerFetch(ctx, new Request(url, { headers: { "X-PB-Share-Passwd": "1234" } }))
+  expect(rightPasswd.status).toStrictEqual(200)
+  expect(await areBlobsEqual(await rightPasswd.blob(), blob1)).toStrictEqual(true)
+
+  // URL redirect role is gated as well
+  const redirect = await workerFetch(ctx, addRole(url, "u"))
+  expect(redirect.status).toStrictEqual(403)
+
+  // display page stays accessible and renders the unlock prompt
+  const display = await workerFetch(ctx, addRole(url, "d"))
+  expect(display.status).toStrictEqual(200)
+  const displayHtml = await display.text()
+  expect(displayHtml.includes("该内容已开启加密分享")).toStrictEqual(true)
+  expect(displayHtml.includes("分享密钥")).toStrictEqual(true)
+
+  // metadata stays accessible and reports the protection
+  const fetchMeta: MetaResponse = await (await workerFetch(ctx, addRole(url, "m"))).json()
+  expect(fetchMeta.passwordProtected).toStrictEqual(true)
+
+  // update without share-passwd keeps the protection
+  await upload(ctx, { c: blob1 }, { method: "PUT", url: uploadResponseJson.manageUrl })
+  const afterUpdate = await workerFetch(ctx, url)
+  expect(afterUpdate.status).toStrictEqual(403)
+})
+
+test("share password on markdown render page /a/", async () => {
+  const ctx = createExecutionContext()
+  const md = "# hello\n\nworld"
+
+  const uploadResponseJson = await upload(ctx, { c: md, "share-passwd": "1234" })
+  const url = uploadResponseJson.url
+
+  // browser without key gets the prompt page
+  const prompt = await workerFetch(
+    ctx,
+    new Request(addRole(url, "a"), { headers: { "Sec-Fetch-Mode": "navigate", Accept: "text/html" } }),
+  )
+  expect(prompt.status).toStrictEqual(200)
+  expect(prompt.headers.get("Content-Type")?.startsWith("text/html")).toStrictEqual(true)
+  expect(prompt.headers.get("Cache-Control")).toStrictEqual("no-store")
+  const promptHtml = await prompt.text()
+  expect(promptHtml.includes("该内容已开启加密分享")).toStrictEqual(true)
+  expect(promptHtml.includes("X-PB-Share-Passwd")).toStrictEqual(true)
+
+  // wrong key -> 403
+  const wrong = await workerFetch(ctx, new Request(addRole(url, "a"), { headers: { "X-PB-Share-Passwd": "9999" } }))
+  expect(wrong.status).toStrictEqual(403)
+
+  // right key -> server-rendered markdown
+  const ok = await workerFetch(ctx, new Request(addRole(url, "a"), { headers: { "X-PB-Share-Passwd": "1234" } }))
+  expect(ok.status).toStrictEqual(200)
+  expect(ok.headers.get("Cache-Control")).toStrictEqual("no-store")
+  const okHtml = await ok.text()
+  expect(okHtml.includes("<h1")).toStrictEqual(true)
+  expect(okHtml.includes("hello")).toStrictEqual(true)
+})
+
+test("share password prompt page on raw URL for browsers", async () => {
+  const ctx = createExecutionContext()
+  const html = "<h1>ok</h1>"
+
+  const uploadResponseJson = await upload(ctx, {
+    c: { content: new Blob([html]), filename: "page.html" },
+    "share-passwd": "1234",
+  })
+  const url = uploadResponseJson.url
+
+  // API-ish client without key -> 403 (no browser navigation markers)
+  const noKey = await workerFetch(ctx, url)
+  expect(noKey.status).toStrictEqual(403)
+
+  // browser navigation without key -> prompt page
+  const prompt = await workerFetch(
+    ctx,
+    new Request(url, { headers: { "Sec-Fetch-Mode": "navigate", Accept: "text/html" } }),
+  )
+  expect(prompt.status).toStrictEqual(200)
+  expect(prompt.headers.get("Cache-Control")).toStrictEqual("no-store")
+  const promptHtml = await prompt.text()
+  expect(promptHtml.includes("该内容已开启加密分享")).toStrictEqual(true)
+  expect(promptHtml.includes('"raw"')).toStrictEqual(true)
+  expect(promptHtml.includes("image/")).toStrictEqual(true)
+  expect(promptHtml.includes('"/a"')).toStrictEqual(true)
+
+  // correct key -> raw content served with no-store. (The test config
+  // downgrades text/html to text/plain via DISALLOWED_MIME_FOR_PASTE; the
+  // production config serves it as text/html with the sandbox CSP.)
+  const ok = await workerFetch(ctx, new Request(url, { headers: { "X-PB-Share-Passwd": "1234" } }))
+  expect(ok.status).toStrictEqual(200)
+  expect(ok.headers.get("Cache-Control")).toStrictEqual("no-store")
+  expect(await ok.text()).toStrictEqual(html)
+})
+
 test("highlight with option lang", async () => {
   const blob1 = genRandomBlob(1024)
   const ctx = createExecutionContext()

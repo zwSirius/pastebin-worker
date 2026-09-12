@@ -21,6 +21,7 @@ export interface PasteMetadata {
   filename?: string
   highlightLanguage?: string
   encryptionScheme?: string
+  sharePasswd?: string
 }
 
 interface PasteMetadataInStorage {
@@ -37,6 +38,7 @@ interface PasteMetadataInStorage {
   filename?: string
   highlightLanguage?: string
   encryptionScheme?: string
+  sharePasswd?: string
 }
 
 export function metaResponseFromMetadata(metadata: PasteMetadata): MetaResponse {
@@ -49,6 +51,7 @@ export function metaResponseFromMetadata(metadata: PasteMetadata): MetaResponse 
     filename: metadata.filename,
     highlightLanguage: metadata.highlightLanguage,
     encryptionScheme: metadata.encryptionScheme,
+    passwordProtected: metadata.sharePasswd !== undefined,
   }
 }
 
@@ -67,6 +70,7 @@ function migratePasteMetadata(original: PasteMetadataInStorage): PasteMetadata {
     filename: original.filename,
     highlightLanguage: original.highlightLanguage,
     encryptionScheme: original.encryptionScheme,
+    sharePasswd: original.sharePasswd,
   }
 }
 
@@ -162,6 +166,7 @@ interface WriteOptions {
   filename?: string
   highlightLanguage?: string
   encryptionScheme?: string
+  sharePasswd?: string
   isMPUComplete: boolean
 }
 
@@ -202,6 +207,7 @@ export async function updatePaste(
     accessCounter: originalMetadata.accessCounter,
     sizeBytes: options.contentLength,
     encryptionScheme: options.encryptionScheme,
+    sharePasswd: options.sharePasswd,
   }
 
   await env.PB.put(pasteName, newLocation === "R2" ? "" : content, {
@@ -244,6 +250,7 @@ export async function createPaste(
     accessCounter: 0,
     sizeBytes: options.contentLength,
     encryptionScheme: options.encryptionScheme,
+    sharePasswd: options.sharePasswd,
   }
 
   await env.PB.put(pasteName, location === "R2" ? "" : content, {

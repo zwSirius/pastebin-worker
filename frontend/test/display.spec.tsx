@@ -368,4 +368,86 @@ describe("DisplayPaste", () => {
     expect(await screen.findByText(/不是可渲染的文件/)).toBeInTheDocument()
     expect(screen.getByText("下载原始文件")).toBeInTheDocument()
   })
+
+  it("asks for the share password on protected pastes and unlocks on success", async () => {
+    const text = "secret content"
+    server.use(
+      http.head("/abcd", () => new HttpResponse(null, { status: 403 })),
+      http.get("/abcd", ({ request }) => {
+        if (request.headers.get("X-PB-Share-Passwd") !== "1234") {
+          return new HttpResponse("Error 403: password required", { status: 403 })
+        }
+        return HttpResponse.arrayBuffer(new TextEncoder().encode(text).buffer, {
+          headers: {
+            "Content-Type": "text/plain;charset=UTF-8",
+            "Content-Length": String(text.length),
+          },
+        })
+      }),
+    )
+    vi.stubGlobal("location", new URL("https://example.com/d/abcd"))
+
+    render(<DisplayPaste config={__WRANGLER_CONFIG__} />)
+
+    const input = await screen.findByLabelText("分享密钥")
+    expect(screen.getByText("（密钥保护）")).toBeInTheDocument()
+
+    // wrong password shows an error and keeps the prompt
+    await userEvent.type(input, "0000")
+    await userEvent.click(screen.getByRole("button", { name: "解锁" }))
+    expect(await screen.findByText("密钥不正确，请重试")).toBeInTheDocument()
+    expect(screen.queryByRole("article")).not.toBeInTheDocument()
+
+    // correct password unlocks and renders the content
+    await userEvent.clear(input)
+    await userEvent.type(input, "1234")
+    await userEvent.click(screen.getByRole("button", { name: "解锁" }))
+    const article = await screen.findByRole("article")
+    expect(article.textContent).toStrictEqual(text)
+    expect(await screen.findByText("（已解密）")).toBeInTheDocument()
+  })
+
+  it("renders the unlock prompt directly from the SSR payload for protected pastes", async () => {
+    window.__PASTE_DATA__ = { passwordProtected: true, name: "abcd" }
+    let getCalled = false
+    server.use(
+      http.get("/abcd", () => {
+        getCalled = true
+        return new HttpResponse(null, { status: 500 })
+      }),
+    )
+    vi.stubGlobal("location", new URL("https://example.com/d/abcd"))
+
+    render(<DisplayPaste config={__WRANGLER_CONFIG__} />)
+
+    expect(await screen.findByLabelText("分享密钥")).toBeInTheDocument()
+    expect(screen.getByText("（密钥保护）")).toBeInTheDocument()
+    expect(getCalled).toStrictEqual(false)
+  })
+
+  it("offers a sandboxed rendered view for HTML pastes", async () => {
+    const html = "<h1>hello</h1>"
+    server.use(
+      ...mockPaste("abcd", {
+        body: new TextEncoder().encode(html).buffer,
+        headers: { "Content-Type": "text/html;charset=UTF-8" },
+      }),
+    )
+    vi.stubGlobal("location", new URL("https://example.com/d/abcd"))
+
+    render(<DisplayPaste config={__WRANGLER_CONFIG__} />)
+
+    const article = await screen.findByRole("article")
+    expect(article.textContent).toStrictEqual(html)
+
+    await userEvent.click(screen.getByText("（渲染视图）"))
+    const frame = screen.getByTitle("渲染预览 abcd")
+    expect(frame.tagName.toLowerCase()).toStrictEqual("iframe")
+    expect(frame.getAttribute("sandbox")).toStrictEqual("allow-scripts allow-forms allow-popups")
+    expect(frame.getAttribute("src")).toStrictEqual("blob:mock")
+    expect(screen.queryByRole("article")).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByText("（显示源码）"))
+    expect(screen.getByRole("article")).toBeInTheDocument()
+  })
 })

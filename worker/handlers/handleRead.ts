@@ -1,4 +1,4 @@
-import { decode, WorkerError, escapeHtml } from "../common.js"
+import { decode, timingSafeEqual, WorkerError, escapeHtml } from "../common.js"
 import { isLegalUrl } from "../../shared/verify.js"
 import { getDocMarkdown, getCurlIndexMarkdown, renderDocAsHtml } from "../pages/docs.js"
 import { verifyAuth } from "../pages/auth.js"
@@ -10,6 +10,7 @@ import { parsePath } from "../../shared/parsers.js"
 import { MAX_URL_REDIRECT_LEN } from "../../shared/constants.js"
 import manifest from "../../dist/frontend/.vite/ssr-manifest.json"
 import { getAssetPaths, renderCssLinks, DARK_MODE_SCRIPT } from "../ssrUtils.js"
+import { renderShareKeyPrompt } from "../pages/shareKeyPrompt.js"
 
 type Headers = Record<string, string>
 
@@ -48,6 +49,15 @@ function lastModifiedHeader(metadata: PasteMetadata): Headers {
 function isCurlAgent(request: Request): boolean {
   const ua = request.headers.get("User-Agent") || ""
   return ua.toLowerCase().startsWith("curl/")
+}
+
+// Whether this request is a top-level browser navigation. Modern browsers
+// send Sec-Fetch-Mode: navigate (a forbidden header fetch() cannot fake), and
+// navigations also carry an Accept header preferring text/html. curl and
+// other API clients send neither, so they keep getting the bare 403.
+function isBrowserNavigation(request: Request): boolean {
+  if (request.headers.get("Sec-Fetch-Mode") === "navigate") return true
+  return (request.headers.get("Accept") ?? "").includes("text/html")
 }
 
 async function handleStaticPages(request: Request, env: Env, _: ExecutionContext): Promise<Response | null> {
@@ -203,6 +213,29 @@ export async function handleGet(request: Request, env: Env, ctx: ExecutionContex
     throw new WorkerError(404, `找不到名为 '${name}' 的粘贴`)
   }
 
+  // password gate for share-key-protected pastes: raw content and URL
+  // redirect require the key (sent via the X-PB-Share-Passwd header). The
+  // display page ("d"), metadata ("m") and the markdown render page ("a",
+  // which serves its own key prompt) stay accessible so clients can ask
+  // for the key.
+  if (item.metadata.sharePasswd && role !== "d" && role !== "m" && role !== "a") {
+    const provided = request.headers.get("X-PB-Share-Passwd")
+    if (provided === null && role === undefined && !isHead && isBrowserNavigation(request)) {
+      // Browser opening the content URL directly: serve a key prompt page
+      // instead of a bare 403 — the same flow as the /a/ markdown render.
+      return new Response(isHead ? null : renderShareKeyPrompt(env, name, "raw"), {
+        headers: { "Content-Type": "text/html;charset=UTF-8", "Cache-Control": "no-store" },
+      })
+    }
+    if (!timingSafeEqual(provided ?? "", item.metadata.sharePasswd)) {
+      throw new WorkerError(403, "该粘贴受密钥保护，请在请求头 X-PB-Share-Passwd 中提供正确的分享密钥")
+    }
+  }
+
+  // protected content must not be cached: it is key-gated, and a shared
+  // cache entry would bypass the check for whoever hits the same URL next
+  const cacheHeaders: Headers = item.metadata.sharePasswd ? { "Cache-Control": "no-store" } : pasteCacheHeader(env)
+
   const disallowedMimes = env.DISALLOWED_MIME_FOR_PASTE as readonly string[]
   const sanitize = (m: string) => (disallowedMimes.includes(m) ? "text/plain;charset=UTF-8" : m)
 
@@ -253,10 +286,31 @@ export async function handleGet(request: Request, env: Env, ctx: ExecutionContex
 
   // handle article (render as markdown)
   if (role === "a") {
+    const sharePasswd = item.metadata.sharePasswd
+    if (sharePasswd) {
+      const provided = request.headers.get("X-PB-Share-Passwd")
+      if (provided !== null && !timingSafeEqual(provided, sharePasswd)) {
+        throw new WorkerError(403, "该粘贴受密钥保护，请在请求头 X-PB-Share-Passwd 中提供正确的分享密钥")
+      }
+      if (provided === null) {
+        // Browser without the key: serve a small prompt page that re-fetches
+        // this URL with the key once entered. curl and other API clients get
+        // the usual 403 with a header hint instead.
+        if (!isBrowserNavigation(request)) {
+          throw new WorkerError(403, "该粘贴受密钥保护，请在请求头 X-PB-Share-Passwd 中提供正确的分享密钥")
+        }
+        return new Response(isHead ? null : renderShareKeyPrompt(env, name, "article"), {
+          headers: {
+            "Content-Type": `text/html;charset=UTF-8`,
+            ...cacheHeaders,
+          },
+        })
+      }
+    }
     return new Response(shouldGetPasteContent ? makeMarkdown(await decodeMaybeStream(item.paste)) : null, {
       headers: {
         "Content-Type": `text/html;charset=UTF-8`,
-        ...pasteCacheHeader(env),
+        ...cacheHeaders,
         ...lastModifiedHeader(item.metadata),
       },
     })
@@ -283,7 +337,7 @@ export async function handleGet(request: Request, env: Env, ctx: ExecutionContex
         return new Response(isHead ? null : page, {
           headers: {
             "Content-Type": `text/html;charset=UTF-8`,
-            ...pasteCacheHeader(env),
+            ...cacheHeaders,
             ...lastModifiedHeader(item.metadata),
           },
         })
@@ -296,14 +350,16 @@ export async function handleGet(request: Request, env: Env, ctx: ExecutionContex
     const pageUrl = url
     pageUrl.search = ""
     pageUrl.pathname = "/display.html"
-    const page = decode(await (await env.ASSETS.fetch(pageUrl)).arrayBuffer()).replace(
-      "{{PASTE_NAME}}",
-      name + (filename ? " / " + filename : ext ? ext : item.metadata.filename ? " / " + item.metadata.filename : ""),
-    )
+    // hide the filename of a password-protected paste until it is unlocked
+    const titleName = item.metadata.sharePasswd
+      ? name
+      : name +
+        (filename ? " / " + filename : ext ? ext : item.metadata.filename ? " / " + item.metadata.filename : "")
+    const page = decode(await (await env.ASSETS.fetch(pageUrl)).arrayBuffer()).replace("{{PASTE_NAME}}", titleName)
     return new Response(isHead ? null : page, {
       headers: {
         "Content-Type": `text/html;charset=UTF-8`,
-        ...pasteCacheHeader(env),
+        ...cacheHeaders,
         ...lastModifiedHeader(item.metadata),
       },
     })
@@ -312,7 +368,7 @@ export async function handleGet(request: Request, env: Env, ctx: ExecutionContex
   // handle default
   const headers: Headers = {
     "Content-Type": `${inferred_mime}`,
-    ...pasteCacheHeader(env),
+    ...cacheHeaders,
     ...lastModifiedHeader(item.metadata),
   }
 

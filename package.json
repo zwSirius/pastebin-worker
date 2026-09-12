@@ -50,7 +50,8 @@
     "semi": false,
     "trailingComma": "all",
     "tabWidth": 2,
-    "printWidth": 120
+    "printWidth": 120,
+    "endOfLine": "auto"
   },
   "dependencies": {
     "@mjackson/multipart-parser": "^0.10.1",

@@ -1,7 +1,6 @@
 // we will move this file to a shared directory later
 
 import type { MPUCreateResponse, PasteResponse } from "./interfaces.js"
-import type { EncryptionScheme } from "../frontend/utils/encryption.js"
 import { parsePath } from "./parsers.js"
 
 export class UploadError extends Error {
@@ -23,8 +22,10 @@ export interface UploadOptions {
   password?: string
   name?: string
 
+  // password to protect viewing/downloading the paste; checked by the server
+  sharePasswd?: string
+
   highlightLanguage?: string
-  encryptionScheme?: EncryptionScheme
   expire?: string
   manageUrl?: string
 }
@@ -129,8 +130,8 @@ export async function uploadNormal(
     isPrivate,
     password,
     name,
+    sharePasswd,
     highlightLanguage,
-    encryptionScheme,
     expire,
     manageUrl,
   }: UploadOptions,
@@ -149,7 +150,7 @@ export async function uploadNormal(
   if (expire !== undefined) fd.set("e", expire)
   if (password !== undefined) fd.set("s", password)
   if (!isUpdate && name !== undefined) fd.set("n", name)
-  if (encryptionScheme !== undefined) fd.set("encryption-scheme", encryptionScheme)
+  if (sharePasswd !== undefined) fd.set("share-passwd", sharePasswd)
   if (highlightLanguage !== undefined) fd.set("lang", highlightLanguage)
   if (isPrivate) fd.set("p", "1")
 
@@ -178,8 +179,8 @@ export async function uploadMPU(
     isPrivate,
     password,
     name,
+    sharePasswd,
     highlightLanguage,
-    encryptionScheme,
     expire,
     manageUrl,
   }: UploadOptions,
@@ -298,8 +299,8 @@ export async function uploadMPU(
     if (highlightLanguage !== undefined) {
       completeFormData.set("lang", highlightLanguage)
     }
-    if (encryptionScheme !== undefined) {
-      completeFormData.set("encryption-scheme", encryptionScheme)
+    if (sharePasswd !== undefined) {
+      completeFormData.set("share-passwd", sharePasswd)
     }
     const completeReqResp = await fetch(completeUrl, {
       method: isUpdate ? "PUT" : "POST",

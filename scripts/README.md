@@ -52,6 +52,8 @@ Options:
     -e, --expire SECONDS    the expiration time of the paste (in seconds)
     -n, --name NAME         the name of the paste
     -s, --passwd PASSWD     the password
+    -P, --share-passwd PSWD share password (4-8 chars); viewers must enter it
+                            to fetch or view the paste
     -p, --private           make the generated paste name longer for better privacy
     -x, --clip              clip the url to the clipboard
     -E, --encrypt           client-side encrypt with a fresh AES-GCM key.
@@ -67,6 +69,7 @@ Options:
     -c, --content CONTENT   the content of the paste
     -e, --expire SECONDS    the expiration time of the paste (in seconds)
     -s, --passwd PASSWD     the password
+    -P, --share-passwd PSWD replace the share password of the paste
     -x, --clip              clip the url to the clipboard
     -E, --encrypt           re-encrypt with a fresh AES-GCM key on update
     -F, --filename NAME     override the filename stored with the paste
@@ -77,6 +80,7 @@ Options:
     --meta                  fetch /m/<name> metadata as pretty JSON
     -K, --key KEY           decryption key (overrides history lookup).
                             Only used when the paste is encrypted
+    -P, --share-passwd PSWD share password for password-protected pastes
     --no-decrypt            do not decrypt encrypted pastes;
                             write raw ciphertext (iv || ct || tag) instead
     --save [DIR]            save the paste under DIR using the server-provided

@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react"
-import { Button, CircularProgress, Link, Tooltip } from "../components/ui/index.js"
+import { Button, CircularProgress, Input, Link, Tooltip } from "../components/ui/index.js"
 import { DarkModeToggle, useDarkModeSelection } from "../components/DarkModeToggle.js"
 import { DownloadIcon, HomeIcon } from "../components/icons.js"
 import { CopyWidget } from "../components/CopyWidget.js"
-import { tst } from "../utils/overrides.js"
+import { inputOverrides, tst } from "../utils/overrides.js"
 import { highlightHTML, useHljsForLang } from "../utils/highlight.js"
 import { formatSize } from "../utils/utils.js"
 
@@ -60,7 +60,7 @@ interface DisplayPasteViewProps {
   pasteLang?: string
   isFileBinary: boolean
   guessedEncoding: string | null
-  isDecrypted: "not encrypted" | "encrypted" | "decrypted"
+  isDecrypted: "not encrypted" | "encrypted" | "protected" | "decrypted"
   forceShowBinary: boolean
   setForceShowBinary: (v: boolean) => void
   isLoading: boolean
@@ -72,6 +72,10 @@ interface DisplayPasteViewProps {
   mediaInfo?: MediaInfo | null
   metaFilename?: string
   onLoadAnyway?: () => void
+  // present when the paste is protected by a share password: the view shows
+  // an unlock form and only renders content after a successful check
+  passwordPrompt?: { error: string | null; pending: boolean }
+  onPasswordSubmit?: (password: string) => void
 }
 
 export function DisplayPasteView(props: DisplayPasteViewProps) {
@@ -93,6 +97,8 @@ export function DisplayPasteView(props: DisplayPasteViewProps) {
     mediaInfo,
     metaFilename,
     onLoadAnyway,
+    passwordPrompt,
+    onPasswordSubmit,
   } = props
 
   const indexPageTitle = config.INDEX_PAGE_TITLE || "Pastebin"
@@ -100,6 +106,10 @@ export function DisplayPasteView(props: DisplayPasteViewProps) {
   const [, modeSelection, setModeSelection] = useDarkModeSelection()
   const hljs = useHljsForLang(pasteLang)
   const [downloadUrl, setDownloadUrl] = useState<string>("#")
+  const [unlockPassword, setUnlockPassword] = useState("")
+  const [renderHtml, setRenderHtml] = useState(false)
+
+  const showPasswordPrompt = passwordPrompt !== undefined && pasteFile === undefined
 
   // Create and cleanup blob URL
   useEffect(() => {
@@ -112,9 +122,21 @@ export function DisplayPasteView(props: DisplayPasteViewProps) {
     }
   }, [pasteFile])
 
+  // leave the rendered view whenever a different paste (or none) is shown
+  useEffect(() => {
+    setRenderHtml(false)
+  }, [pasteFile])
+
   const pasteMediaKind = pasteFile ? mediaKindOf(pasteFile) : null
   const mediaInfoKind = mediaInfo ? mediaKindOfType(mediaInfo.contentType) : null
   const showFileContent = pasteFile !== undefined && pasteMediaKind === null && (!isFileBinary || forceShowBinary)
+  // HTML text content can additionally be previewed rendered in a sandboxed
+  // iframe; the sandbox matches the CSP the raw route applies to text/html
+  const isHtmlFile =
+    pasteFile !== undefined &&
+    pasteMediaKind === null &&
+    !isFileBinary &&
+    (pasteFile.type.startsWith("text/html") || /\.x?html?$/i.test(pasteFile.name))
   const pasteStringContent = pasteContentBuffer && new TextDecoder().decode(pasteContentBuffer)
   const highlightedHTML = pasteStringContent ? highlightHTML(hljs, pasteLang, pasteStringContent) : ""
   const pasteLineCount = (highlightedHTML?.match(/\n/g)?.length || 0) + 1
@@ -194,7 +216,13 @@ export function DisplayPasteView(props: DisplayPasteViewProps) {
               </>
             )}
             <span className="ml-1 shrink-0">
-              {isDecrypted === "decrypted" ? "（已解密）" : isDecrypted === "encrypted" ? "（已加密）" : ""}
+              {isDecrypted === "decrypted"
+                ? "（已解密）"
+                : isDecrypted === "encrypted"
+                  ? "（已加密）"
+                  : isDecrypted === "protected"
+                    ? "（密钥保护）"
+                    : ""}
             </span>
           </h1>
           <div className="flex flex-row gap-2 items-center">
@@ -227,7 +255,40 @@ export function DisplayPasteView(props: DisplayPasteViewProps) {
         </div>
         <div className="my-4">
           <div className={`w-full bg-default-100 rounded-lg p-3 relative ${tst}`}>
-            {isLoading ? (
+            {showPasswordPrompt && passwordPrompt ? (
+              <div className="flex flex-col items-center justify-center gap-4 py-8">
+                <div className="text-foreground-600 text-center px-4">
+                  该内容已开启加密分享，输入正确的密钥后即可查看与下载。
+                </div>
+                <form
+                  className="flex flex-row items-start gap-2 w-full max-w-[24rem] px-4"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    if (unlockPassword.length > 0 && !passwordPrompt.pending) onPasswordSubmit?.(unlockPassword)
+                  }}
+                >
+                  <Input
+                    type="text"
+                    aria-label="分享密钥"
+                    placeholder="分享密钥"
+                    autoFocus
+                    value={unlockPassword}
+                    onValueChange={setUnlockPassword}
+                    isInvalid={!!passwordPrompt.error}
+                    errorMessage={passwordPrompt.error ?? undefined}
+                    classNames={inputOverrides}
+                  />
+                  <Button
+                    type="submit"
+                    color="primary"
+                    isDisabled={unlockPassword.length === 0 || passwordPrompt.pending}
+                    className="shrink-0 mt-0.5"
+                  >
+                    {passwordPrompt.pending ? "验证中…" : "解锁"}
+                  </Button>
+                </form>
+              </div>
+            ) : isLoading ? (
               <div className="h-[10em] flex items-center justify-center">
                 <CircularProgress label={"加载中……"} />
               </div>
@@ -257,6 +318,11 @@ export function DisplayPasteView(props: DisplayPasteViewProps) {
                       <div className="text-gray-500 mb-2 text-sm flex flex-row gap-2">
                         <span>{pasteFile?.name}</span>
                         <span>{`(${formatSize(pasteFile.size)})`}</span>
+                        {isHtmlFile && (
+                          <button className="text-primary-500 cursor-pointer" onClick={() => setRenderHtml((v) => !v)}>
+                            {renderHtml ? "（显示源码）" : "（渲染视图）"}
+                          </button>
+                        )}
                         {forceShowBinary && (
                           <button className="ml-2 text-primary-500" onClick={() => setForceShowBinary(false)}>
                             （点击隐藏）
@@ -264,23 +330,32 @@ export function DisplayPasteView(props: DisplayPasteViewProps) {
                         )}
                         {pasteLang && <span className={"grow text-right"}>{pasteLang}</span>}
                       </div>
-                      <div className="font-mono relative" role="article">
-                        <pre
-                          style={{ marginLeft: lineNumOffset, width: `calc(100% - ${lineNumOffset})` }}
-                          dangerouslySetInnerHTML={{ __html: highlightedHTML }}
-                          className={"overflow-x-auto"}
+                      {renderHtml && isHtmlFile ? (
+                        <iframe
+                          sandbox="allow-scripts allow-forms allow-popups"
+                          src={downloadUrl}
+                          title={`渲染预览 ${pasteFile?.name ?? name}`}
+                          className="w-full h-[70vh] border-0 rounded-md"
                         />
-                        <span
-                          className={
-                            "line-number-rows absolute pointer-events-none text-default-500 top-0 left-0 " +
-                            "border-solid border-default-300 border-r-1"
-                          }
-                        >
-                          {Array.from({ length: pasteLineCount }, (_, idx) => {
-                            return <span key={idx} />
-                          })}
-                        </span>
-                      </div>
+                      ) : (
+                        <div className="font-mono relative" role="article">
+                          <pre
+                            style={{ marginLeft: lineNumOffset, width: `calc(100% - ${lineNumOffset})` }}
+                            dangerouslySetInnerHTML={{ __html: highlightedHTML }}
+                            className={"overflow-x-auto"}
+                          />
+                          <span
+                            className={
+                              "line-number-rows absolute pointer-events-none text-default-500 top-0 left-0 " +
+                              "border-solid border-default-300 border-r-1"
+                            }
+                          >
+                            {Array.from({ length: pasteLineCount }, (_, idx) => {
+                              return <span key={idx} />
+                            })}
+                          </span>
+                        </div>
+                      )}
                     </>
                   ) : (
                     binaryFileIndicator

@@ -16,6 +16,8 @@ If the paste is encrypted, an `X-PB-Encryption-Scheme` header will be set to the
 
 If the paste is uploaded with a `lang` parameter, an `X-PB-Highlight-Language` header will be set to the highlight language.
 
+If the paste was uploaded with a `share-passwd`, the content is password-protected: requests must carry the correct password in the `X-PB-Share-Passwd` header, otherwise the worker returns `403`. As an exception, browser navigations without the key (top-level requests with `Sec-Fetch-Mode: navigate` or an `Accept` header preferring `text/html`) receive a small HTML key-prompt page instead — after the visitor enters the key, the page re-fetches the URL with the header and renders the content the same way the display page would (markdown via the `/a/` renderer, HTML in a sandboxed frame, images and media inline, other text as plain text, binary as a download). The display page `/d/<name>` and the markdown render `/a/<name>` provide the same prompt flow.
+
 - `?a=`: optional. Set `Content-Disposition` to `attachment` if present.
 
 - `?mime=<mime>`: optional. Specify the mime-type, suppressing the effect of `<ext>`. No effect if `lang` is specified (in which case the mime-type is always `text/html`).
@@ -24,6 +26,7 @@ Examples: `GET /abcd?lang=js`, `GET /abcd?mime=application/json`.
 
 If error occurs, the worker returns status code different from `200`:
 
+- `403`: the paste is password-protected and the `X-PB-Share-Passwd` header is missing or incorrect.
 - `404`: the paste of given name is not found.
 - `500`: unexpected exception. You may report this to the author to give it a fix.
 
@@ -47,7 +50,7 @@ If error occurs, the worker returns status code different from `302`:
 
 ## **GET** `/d/<name>[.<ext>]` or `/d/<name>/<filename>`
 
-Return the web page that will display the content of the paste of name `<name>`. If the paste is encrypted, a key can be appended to the URL to decrypt the paste of name `<name>` in browser.
+Return the web page that will display the content of the paste of name `<name>`. If the paste is encrypted, a key can be appended to the URL to decrypt the paste of name `<name>` in browser. If the paste is password-protected (`share-passwd`), the page shows a password prompt; the content is only fetched and shown after the correct password is entered.
 
 If error occurs, the worker returns status code different from `200`:
 
@@ -74,7 +77,8 @@ The response body is a JSON object, for example:
   "location": "KV",
   "filename": "a.jpg",
   "highlightLanguage": "rust",
-  "encryptionScheme": "AES-GCM"
+  "encryptionScheme": "AES-GCM",
+  "passwordProtected": false
 }
 ```
 
@@ -88,10 +92,13 @@ Explanation of the fields:
 - `location`: String, either "KV" or "R2". Representing whether the paste content is stored in Cloudflare KV storage or R2 object storage.
 - `highlightLanguage`: Optional string. The syntax highlighting language uploaded with the `lang` form field.
 - `encryptionScheme`: Optional string. Currently only "AES-GCM" is possible. The encryption scheme used to encrypt the paste.
+- `passwordProtected`: Boolean. Whether the paste was uploaded with a `share-passwd` and therefore requires the `X-PB-Share-Passwd` header on content fetches.
 
 ## GET `/a/<name>`
 
 Return the HTML converted from the markdown file stored in the paste of name `<name>`. The markdown conversion follows GitHub Flavored Markdown (GFM) Spec, supported by [remark-gfm](https://github.com/remarkjs/remark-gfm).
+
+If the paste is password-protected (`share-passwd`), the request must carry the correct `X-PB-Share-Passwd` header — a wrong key returns `403`, and a request without the header receives a small HTML key-prompt page meant for browsers (the page re-fetches the same URL with the key once the visitor enters it; curl and other API clients are answered with `403` directly).
 
 Syntax highlighting is supported by [prism.js](https://prismjs.com/). LaTeX mathematics is supported by [MathJax](https://www.mathjax.org).
 
@@ -154,6 +161,8 @@ Upload your paste. It accept parameters in form-data:
 
 - `p`: optional. The flag of **private mode**. If specified to any value, the name of the paste is as long as 24 characters. No effect if `n` is used.
 
+- `share-passwd`: optional. A password of 4-8 characters that protects the paste: fetching the content (raw, `/u/` or `/a/`) requires the correct password in the `X-PB-Share-Passwd` header, and the display page `/d/<name>` asks for it before showing anything. The content itself is stored as-is; only access is restricted. On `PUT`, omitting the field keeps the existing share password.
+
 - `encryption-scheme`: optional. The encryption scheme used in the uploaded paste. It will be returned as `X-PB-Encryption-Scheme` header on fetching paste. Note that this is not the encryption scheme that the backend will perform.
 
 - `lang`: optional. The language of the uploaded paste for syntax highlighting. Should be a lower-case name of language listed in [highlight.js documentation](https://github.com/highlightjs/highlight.js/blob/main/SUPPORTED_LANGUAGES.md). This will be returned as `X-PB-Highlight-Language` header on fetching paste.
@@ -193,7 +202,7 @@ If error occurs, the worker returns status code different from `200`:
 
 ## **PUT** `/<name>:<passwd>`
 
-Update your paste of the name `<name>` and password `<passwd>`. It accepts all the same form-data fields as `POST` (`c`, `e`, `s`, `lang`, `encryption-scheme`) **except** `n` (the name cannot be changed; supplying it returns `400`) and `p` (silently ignored). When `e` is supplied, the expiration is recalculated from the update time.
+Update your paste of the name `<name>` and password `<passwd>`. It accepts all the same form-data fields as `POST` (`c`, `e`, `s`, `lang`, `encryption-scheme`, `share-passwd`) **except** `n` (the name cannot be changed; supplying it returns `400`) and `p` (silently ignored). When `e` is supplied, the expiration is recalculated from the update time. Omitting `share-passwd` keeps the existing one.
 
 The returning of `PUT` method is the same as `POST` method.
 

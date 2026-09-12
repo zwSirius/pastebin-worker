@@ -11,6 +11,7 @@ export interface MetaResponse {
   filename?: string
   highlightLanguage?: string
   encryptionScheme?: string
+  passwordProtected?: boolean
 }
 
 export interface PasteResponse extends MetaResponse {
@@ -26,11 +27,14 @@ export interface MPUCreateResponse {
 }
 
 export interface SerializedPasteData {
-  content: string
-  metadata: MetaResponse
+  // password-protected pastes embed no content/metadata: the client must
+  // prompt for the share password before it can fetch anything
+  passwordProtected?: boolean
+  content?: string
+  metadata?: MetaResponse
   name: string
-  isBinary: boolean
-  guessedEncoding: string | null
+  isBinary?: boolean
+  guessedEncoding?: string | null
 }
 
 declare global {
